@@ -2,7 +2,7 @@
 
 Lumina is a multilingual commerce platform built around **Lumi**, an AI product expert/chatbot that combines hybrid retrieval, validated citations and deterministic commerce workflows. The storefront is English-first and supports Brazilian Portuguese and Latin American Spanish.
 
-**Production:** [lumina-three-gamma-64.vercel.app](https://lumina-three-gamma-64.vercel.app)
+**Production:** [lumina-smart-store.vercel.app](https://lumina-smart-store.vercel.app)
 
 ![Stack](https://img.shields.io/badge/stack-React%20%7C%20FastAPI%20%7C%20PostgreSQL-6f56d9)
 ![RAG](https://img.shields.io/badge/RAG-hybrid%20retrieval%20%2B%20reranking-ff806a)
