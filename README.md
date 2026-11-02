@@ -106,7 +106,7 @@ The evaluation set lives at `backend/evals/golden_dataset.json`. Production rele
 
 The repository is configured as a single Vercel project. Vercel builds the Vite storefront, loads the FastAPI entrypoint from `backend.app.main:app`, and serves both from the same origin. The React build is mounted after the API routes, so `/api/v1/*`, `/health` and `/metrics` remain handled by FastAPI.
 
-Connect the GitHub repository in Vercel or run `vercel git connect` once. Every push to `main` then creates a production deployment, while pull requests receive preview deployments. GitHub Actions runs backend linting, tests and the production frontend build before changes are merged.
+The GitHub repository is connected to Vercel. Every push to `main` creates a production deployment, while pull requests receive preview deployments. GitHub Actions runs backend linting, tests and the production frontend build before changes are merged.
 
 Configure `APP_ENV=production`, `APP_SECRET_KEY`, `DATABASE_URL` and optionally `OPENAI_API_KEY` in Vercel Project Settings. Run the knowledge ingestion command against the production database before enabling live vector retrieval.
 
