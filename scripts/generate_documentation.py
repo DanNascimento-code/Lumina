@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from pypdf import PdfReader, PdfWriter
+from pypdf.generic import NameObject
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -45,7 +47,6 @@ class DocMeta:
     subtitle: str
     label: str
     version: str = "1.0"
-    date: str = "November 2026"
 
 
 class AccentRule(Flowable):
@@ -322,7 +323,7 @@ def draw_cover(canvas, doc, meta: DocMeta) -> None:
     canvas.line(22 * mm, height - 162 * mm, 65 * mm, height - 162 * mm)
     canvas.setFillColor(colors.HexColor("#B5AEC9"))
     canvas.setFont("Helvetica", 8)
-    canvas.drawString(22 * mm, 25 * mm, f"VERSION {meta.version}  |  {meta.date.upper()}")
+    canvas.drawString(22 * mm, 25 * mm, f"VERSION {meta.version}")
     canvas.drawRightString(width - 22 * mm, 25 * mm, "LUMINA COMMERCE, INC.")
     canvas.restoreState()
 
@@ -349,6 +350,20 @@ def make_doc(path: Path, meta: DocMeta, story: list[Flowable]) -> None:
         ]
     )
     doc.build([PageBreak(), *story])
+    strip_date_metadata(path)
+
+
+def strip_date_metadata(path: Path) -> None:
+    reader = PdfReader(path)
+    writer = PdfWriter()
+    writer.clone_document_from_reader(reader)
+    info = writer._info.get_object()
+    info.pop(NameObject("/CreationDate"), None)
+    info.pop(NameObject("/ModDate"), None)
+    temporary = path.with_suffix(".tmp.pdf")
+    with temporary.open("wb") as stream:
+        writer.write(stream)
+    temporary.replace(path)
 
 
 def nontechnical_story() -> list[Flowable]:
