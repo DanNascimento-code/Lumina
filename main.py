@@ -1,16 +1,5 @@
-from fastapi import FastAPI
+"""Compatibility entry point for `fastapi dev main.py`."""
 
-app = FastAPI()
+from backend.app.main import app
 
-@app.get("/")
-async def root():
-    return {"message": "Hello, World!!"}
-
-@app.get("/items/{item_id}")
-async def read_item(item_id: int, qty: int | None = None):
-    if qty:
-        return {"item_id": item_id, "qty": qty}
-    return {"item_id": item_id}
-
-
-
+__all__ = ["app"]

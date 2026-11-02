@@ -1,0 +1,27 @@
+[
+  {
+    "user_input": "How long will my order take to reach São Paulo?",
+    "reference": "Capital cities in the Southeast normally receive orders within 2 to 5 business days, but the postal-code estimate at checkout prevails.",
+    "reference_source": "shipping_policy.md"
+  },
+  {
+    "user_input": "Can I return headphones I received five days ago?",
+    "reference": "Yes. Online purchases may be returned within 7 calendar days of delivery with accessories and manuals and no signs of misuse.",
+    "reference_source": "returns_policy.md"
+  },
+  {
+    "user_input": "Which is better for a long trip, Aurora or Nimbus?",
+    "reference": "Aurora is better for travel because it has noise cancellation, an over-ear design and up to 42 hours of battery; Nimbus is designed for shared listening.",
+    "reference_source": "product_catalog.md"
+  },
+  {
+    "user_input": "Does Lumina store my complete card number?",
+    "reference": "No. Full card details are processed by the payment provider and are never stored in Lumina systems.",
+    "reference_source": "payments_security.md"
+  },
+  {
+    "user_input": "Can Orbit Watch diagnose heart conditions?",
+    "reference": "No. Its metrics are for wellness; Orbit is not a medical device and does not replace professional advice.",
+    "reference_source": "product_catalog.md"
+  }
+]
