@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="frontend/public/assets/brand/lumina-logo.png" alt="Lumina" width="112" />
+</p>
+
 # Lumina Commerce
 
 Lumina is a multilingual commerce platform built around **Lumi**, an AI product expert/chatbot that combines hybrid retrieval, validated citations and deterministic commerce workflows. The storefront is English-first and supports Brazilian Portuguese and Latin American Spanish.
@@ -7,6 +11,12 @@ Lumina is a multilingual commerce platform built around **Lumi**, an AI product 
 ![Stack](https://img.shields.io/badge/stack-React%20%7C%20FastAPI%20%7C%20PostgreSQL-6f56d9)
 ![RAG](https://img.shields.io/badge/RAG-hybrid%20retrieval%20%2B%20reranking-ff806a)
 ![Security](https://img.shields.io/badge/AI%20security-defense%20in%20depth-319473)
+
+## Company documentation
+
+- [Product and service guide](output/pdf/lumina-product-and-service-guide.pdf)
+- [Technical documentation](output/pdf/lumina-technical-documentation.pdf)
+- [Lumina brand mark](frontend/public/assets/brand/lumina-logo.png)
 
 ## Product capabilities
 

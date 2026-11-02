@@ -57,7 +57,7 @@ export function CheckoutFlow({ open, items, subtotal, onClose, onSuccess }: Prop
   const total = subtotal + shipping
   return <AnimatePresence>{open && <motion.div className="checkout-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
     <motion.div className="checkout-shell" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }}>
-      <div className="checkout-top"><button onClick={step === 2 ? () => setStep(1) : close}>{step === 2 ? <ChevronLeft /> : <X />}</button><span className="brand compact"><span className="brand-mark"><i /><i /></span><b>LUMINA</b></span><span><LockKeyhole size={14} /> {t('checkout.secure')}</span></div>
+      <div className="checkout-top"><button onClick={step === 2 ? () => setStep(1) : close}>{step === 2 ? <ChevronLeft /> : <X />}</button><span className="brand compact"><img className="brand-logo" src="/assets/brand/lumina-logo.png" alt="" /><b>LUMINA</b></span><span><LockKeyhole size={14} /> {t('checkout.secure')}</span></div>
       <div className="checkout-steps"><span className={step >= 1 ? 'active' : ''}><i>{step > 1 ? <Check /> : 1}</i> {t('checkout.identification')}</span><b /><span className={step >= 2 ? 'active' : ''}><i>{step > 2 ? <Check /> : 2}</i> {t('checkout.payment')}</span><b /><span className={step >= 3 ? 'active' : ''}><i>3</i> {t('checkout.confirmation')}</span></div>
 
       {step === 1 && <div className="checkout-grid"><form className="checkout-form" onSubmit={saveDelivery}><small>{t('checkout.step1')}</small><h2>{t('checkout.where')}</h2><p>{t('checkout.whereBody')}</p>

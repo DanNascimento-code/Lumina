@@ -22,7 +22,7 @@ export function Header({ cartCount, search, onSearch, onCart }: Props) {
     <header className="site-header">
       <button className="icon-btn menu-btn" aria-label={t('header.menu')} onClick={() => setMobileOpen(true)}><Menu /></button>
       <a className="brand" href="#top" aria-label="Lumina home">
-        <span className="brand-mark"><i /><i /></span><b>LUMINA</b>
+        <img className="brand-logo" src="/assets/brand/lumina-logo.png" alt="" /><b>LUMINA</b>
       </a>
       <nav className={mobileOpen ? 'nav open' : 'nav'} aria-label={t('header.navigation')}>
         <button className="nav-close" onClick={() => setMobileOpen(false)} aria-label={t('header.closeMenu')}><X /></button>
