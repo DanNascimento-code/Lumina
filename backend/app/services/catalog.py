@@ -1,6 +1,13 @@
+import uuid
 from decimal import Decimal
 
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncConnection
+
+from backend.app.models.entities import Product
 from backend.app.schemas.commerce import ProductOut
+
+CATALOG_NAMESPACE = uuid.UUID("d7b908a7-b990-4d9c-a46d-83b26b5557ce")
 
 PRODUCTS: tuple[ProductOut, ...] = (
     ProductOut(
@@ -102,6 +109,122 @@ PRODUCTS: tuple[ProductOut, ...] = (
         badges=["-14%"],
         specs={"Power": "15W", "Devices": "3 at once", "Cable": "1.5m USB-C"},
     ),
+    ProductOut(
+        id="aero-earbuds",
+        slug="aero-earbuds",
+        name="Aero Buds Pro",
+        short_description="Immersive sound that travels light.",
+        description=(
+            "Compact wireless earbuds with adaptive noise cancellation, multipoint pairing "
+            "and a pocket-sized charging case."
+        ),
+        category="Audio",
+        price=Decimal("699.90"),
+        old_price=Decimal("799.90"),
+        rating=4.8,
+        review_count=214,
+        stock=41,
+        image_url="/assets/products/aero-earbuds.jpg",
+        accent="#ffb178",
+        badges=["new", "-13%"],
+        specs={"Battery": "30h with case", "Protection": "IP54", "Connection": "Bluetooth 5.4"},
+    ),
+    ProductOut(
+        id="vector-mouse",
+        slug="vector-mouse",
+        name="Vector Mouse S",
+        short_description="Precision shaped for long workdays.",
+        description=(
+            "Ergonomic wireless mouse with a quiet magnetic wheel, programmable controls "
+            "and seamless switching between three devices."
+        ),
+        category="Workspace",
+        price=Decimal("429.90"),
+        rating=4.8,
+        review_count=176,
+        stock=29,
+        image_url="/assets/products/vector-mouse.jpg",
+        accent="#91b9ff",
+        badges=["teamPick"],
+        specs={"Battery": "90 days", "Sensor": "8000 DPI", "Devices": "3 paired"},
+    ),
+    ProductOut(
+        id="sentinel-camera",
+        slug="sentinel-camera",
+        name="Sentinel Cam 2K",
+        short_description="A clearer view, with privacy built in.",
+        description=(
+            "Indoor 2K security camera with person detection, a physical privacy shutter "
+            "and encrypted local or cloud recording."
+        ),
+        category="Smart home",
+        price=Decimal("549.90"),
+        rating=4.7,
+        review_count=138,
+        stock=34,
+        image_url="/assets/products/sentinel-camera.jpg",
+        accent="#8ee0cf",
+        badges=["smartHome"],
+        specs={"Resolution": "2K HDR", "Field of view": "135°", "Connection": "Dual-band Wi-Fi"},
+    ),
+    ProductOut(
+        id="prism-phone",
+        slug="prism-phone",
+        name="Prism Phone X",
+        short_description="Flagship speed without the visual noise.",
+        description=(
+            "5G smartphone with a 120 Hz OLED display, stabilized dual camera and all-day "
+            "battery in a refined aluminum body."
+        ),
+        category="Mobile",
+        price=Decimal("2699.90"),
+        old_price=Decimal("2999.90"),
+        rating=4.8,
+        review_count=302,
+        stock=16,
+        image_url="/assets/products/prism-phone.jpg",
+        accent="#b39cff",
+        badges=["new", "-10%"],
+        specs={"Storage": "256 GB", "Display": "6.4-inch OLED 120 Hz", "Battery": "4800 mAh"},
+    ),
+    ProductOut(
+        id="slate-tablet",
+        slug="slate-tablet",
+        name="Slate Tab 11",
+        short_description="A flexible canvas for work and play.",
+        description=(
+            "Thin 11-inch tablet with a 2.5K display, quad speakers, desktop mode and "
+            "optional pressure-sensitive pen support."
+        ),
+        category="Mobile",
+        price=Decimal("2199.90"),
+        rating=4.7,
+        review_count=167,
+        stock=23,
+        image_url="/assets/products/slate-tablet.jpg",
+        accent="#7fd4e7",
+        badges=["freeShipping"],
+        specs={"Storage": "128 GB", "Display": "11-inch 2.5K", "Battery": "Up to 12h"},
+    ),
+    ProductOut(
+        id="vertex-controller",
+        slug="vertex-controller",
+        name="Vertex Controller",
+        short_description="Console feel across every screen.",
+        description=(
+            "Low-latency wireless controller with Hall-effect sticks, adjustable triggers "
+            "and profiles for PC, mobile and cloud gaming."
+        ),
+        category="Gaming",
+        price=Decimal("459.90"),
+        rating=4.9,
+        review_count=189,
+        stock=38,
+        image_url="/assets/products/vertex-controller.jpg",
+        accent="#ff9a73",
+        badges=["bestSeller"],
+        specs={"Battery": "30h", "Compatibility": "PC + Android + iOS", "Connection": "2.4 GHz + Bluetooth"},
+    ),
 )
 
 
@@ -121,3 +244,47 @@ def list_products(category: str | None = None, search: str | None = None) -> lis
 
 def get_product(product_id: str) -> ProductOut | None:
     return next((product for product in PRODUCTS if product.id == product_id), None)
+
+
+async def seed_catalog(connection: AsyncConnection) -> None:
+    """Keep the PostgreSQL catalog aligned with the versioned storefront fallback."""
+    rows = [
+        {
+            "id": uuid.uuid5(CATALOG_NAMESPACE, product.slug),
+            "slug": product.slug,
+            "name": product.name,
+            "short_description": product.short_description,
+            "description": product.description,
+            "category": product.category,
+            "price": product.price,
+            "old_price": product.old_price,
+            "rating": product.rating,
+            "review_count": product.review_count,
+            "stock": product.stock,
+            "image_url": product.image_url,
+            "accent": product.accent,
+            "specs": {**product.specs, "badges": product.badges},
+        }
+        for product in PRODUCTS
+    ]
+    statement = insert(Product).values(rows)
+    update_columns = {
+        column: getattr(statement.excluded, column)
+        for column in (
+            "name",
+            "short_description",
+            "description",
+            "category",
+            "price",
+            "old_price",
+            "rating",
+            "review_count",
+            "stock",
+            "image_url",
+            "accent",
+            "specs",
+        )
+    }
+    await connection.execute(
+        statement.on_conflict_do_update(index_elements=[Product.slug], set_=update_columns)
+    )

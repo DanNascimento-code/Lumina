@@ -47,7 +47,7 @@ class ChatResponse(BaseModel):
     intent: str
     confidence: float = Field(ge=0, le=1)
     grounded: bool
-    mode: Literal["live-rag", "local-rag", "safe-refusal"]
+    mode: Literal["live-rag", "live-conversation", "local-rag", "safe-refusal"]
     citations: list[Citation] = []
     suggestions: list[str] = []
     actions: list[ProductAction] = []

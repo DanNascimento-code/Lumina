@@ -67,7 +67,7 @@ export function Assistant({ open, onOpen, onClose, initialPrompt, cart, products
           <span className="message-avatar">{message.role === 'assistant' ? <Sparkles /> : <UserRound />}</span>
           <div className="message-stack">
             <div className="message-bubble">{message.content}</div>
-            {message.mode && <span className="answer-mode"><ShieldCheck /> {message.mode === 'live-rag' ? t('assistant.live') : message.mode === 'safe-refusal' ? t('assistant.protected') : t('assistant.local')}</span>}
+            {message.mode && <span className="answer-mode"><ShieldCheck /> {message.mode === 'live-rag' ? t('assistant.live') : message.mode === 'live-conversation' ? t('assistant.liveConversation') : message.mode === 'safe-refusal' ? t('assistant.protected') : t('assistant.local')}</span>}
             {message.citations && message.citations.length > 0 && <details className="citations"><summary><Bot /> {message.citations.length === 1 ? t('assistant.source') : t('assistant.sources', { count: message.citations.length })} <ChevronDown /></summary>{message.citations.map((citation) => <div key={citation.id}><b>{citation.title}</b><p>{citation.excerpt}</p><span>{citation.source} <ExternalLink /></span></div>)}</details>}
             {message.actions && message.actions.length > 0 && <div className="message-actions">{message.actions.map((action) => <button key={action.label} onClick={() => performAction(action)}><ShoppingBag />{action.label}<ArrowRight /></button>)}</div>}
             {message.suggestions && message.suggestions.length > 0 && index === messages.length - 1 && <div className="suggestion-chips">{message.suggestions.map((suggestion) => <button key={suggestion} onClick={() => void ask(suggestion)}>{suggestion}</button>)}</div>}

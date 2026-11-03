@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import structlog
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,6 +20,7 @@ from backend.app.schemas.chat import (
     LLMAnswer,
     ProductAction,
 )
+from backend.app.schemas.commerce import ProductOut
 from backend.app.services.catalog import PRODUCTS
 
 log = structlog.get_logger()
@@ -40,6 +41,12 @@ NON-NEGOTIABLE RULES:
 6. Protect personal data: never request passwords, tokens, full identity documents or secrets.
 7. For recommendations, state the selection criteria and acknowledge trade-offs.
 8. Reply in the locale requested by the application. Avoid jargon and long paragraphs.
+9. Maintain continuity with RECENT HISTORY: resolve pronouns and follow-up questions before
+   answering. Do not repeat the previous answer unless the customer explicitly asks you to.
+10. General conversation and general technology explanations are allowed without a citation,
+    but never present an uncited claim as a Lumina product, price, policy, stock or service fact.
+11. Prefer a useful, complete answer followed by one natural question. Do not default to asking
+    the customer to restate their use case when the history already contains it.
 """.strip()
 
 RESPONSE_COPY: dict[str, dict[str, Any]] = {
@@ -121,7 +128,7 @@ class AssistantService:
             ChatOpenAI(
                 model=settings.llm_model,
                 temperature=settings.llm_temperature,
-                max_retries=2,
+                max_retries=1,
                 timeout=20,
                 api_key=settings.openai_api_key,
             ).with_structured_output(LLMAnswer, method="json_schema")
@@ -148,59 +155,275 @@ class AssistantService:
         query = self._retrieval_query(request, intent)
         chunks = await self.retriever.retrieve(query, session)
         strong_chunks = [chunk for chunk in chunks if chunk.score >= self.settings.rag_min_relevance]
-        if not strong_chunks:
-            return self._abstain(intent, request.locale)
+        grounding_required = self._requires_grounding(intent, request.message)
 
         if self.llm:
-            response = await self._live_answer(request, intent, strong_chunks)
+            response = await self._live_answer(
+                request,
+                intent,
+                strong_chunks or chunks[:3],
+                grounding_required=grounding_required,
+            )
         else:
-            response = self._local_answer(request, intent, strong_chunks)
+            response = self._local_answer(request, intent, strong_chunks or chunks[:3])
         response.actions = self._actions(request.message, intent, request.locale)
         return response
 
-    async def _live_answer(self, request: ChatRequest, intent: str, chunks: list[RetrievedChunk]) -> ChatResponse:
-        context = self._format_context(chunks)
-        history = "\n".join(f"{item.role}: {sanitize_for_prompt(item.content, 500)}" for item in request.history[-6:])
+    async def _live_answer(
+        self,
+        request: ChatRequest,
+        intent: str,
+        chunks: list[RetrievedChunk],
+        *,
+        grounding_required: bool,
+    ) -> ChatResponse:
+        context = self._format_context(chunks) if chunks else "No relevant Lumina source was retrieved."
         cart = ", ".join(f"{item.quantity}x {item.name}" for item in request.cart) or "empty"
-        user_prompt = (
-            f"RESPONSE LOCALE: {request.locale}\nINTENT: {intent}\nCART: {cart}\n"
-            f"RECENT HISTORY:\n{history or 'no history'}\n\nCURRENT QUESTION: {request.message}\n\n"
-            f"TRUSTED SOURCES:\n{context}"
-        )
+        messages = [
+            SystemMessage(content=SYSTEM_PROMPT),
+            HumanMessage(
+                content=(
+                    f"RESPONSE LOCALE: {request.locale}\nINTENT: {intent}\nCART: {cart}\n"
+                    f"GROUNDING REQUIRED: {'yes' if grounding_required else 'no'}\n\n"
+                    f"TRUSTED SOURCES:\n{context}"
+                )
+            ),
+        ]
+        for item in request.history[-8:]:
+            content = sanitize_for_prompt(item.content, 800)
+            messages.append(HumanMessage(content=content) if item.role == "user" else AIMessage(content=content))
+        messages.append(HumanMessage(content=sanitize_for_prompt(request.message, 4000)))
         try:
-            parsed: LLMAnswer = await self.llm.ainvoke(
-                [SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=user_prompt)]
-            )
+            parsed: LLMAnswer = await self.llm.ainvoke(messages)
         except Exception as exc:
-            log.warning("llm_fallback", error=type(exc).__name__)
+            log.warning(
+                "llm_fallback",
+                error=type(exc).__name__,
+                error_code=getattr(exc, "code", None),
+            )
             return self._local_answer(request, intent, chunks)
 
         valid_ids = {chunk.id for chunk in chunks}
         cited_ids = [source_id for source_id in parsed.cited_source_ids if source_id in valid_ids]
-        if not parsed.answerable or parsed.confidence < 0.45 or not cited_ids:
-            return self._abstain(intent, request.locale)
+        if not parsed.answerable or parsed.confidence < 0.4:
+            return self._local_answer(request, intent, chunks)
+        if grounding_required and not cited_ids:
+            return self._local_answer(request, intent, chunks)
         return ChatResponse(
             message=parsed.answer,
             intent=intent,
-            confidence=min(parsed.confidence, max(chunk.score for chunk in chunks)),
-            grounded=True,
-            mode="live-rag",
+            confidence=(
+                min(parsed.confidence, max(chunk.score for chunk in chunks))
+                if chunks and grounding_required
+                else parsed.confidence
+            ),
+            grounded=bool(cited_ids),
+            mode="live-rag" if cited_ids else "live-conversation",
             citations=self._citations(chunks, cited_ids),
             suggestions=parsed.follow_up_questions[:3] or self._suggestions(intent, request.locale),
         )
 
     def _local_answer(self, request: ChatRequest, intent: str, chunks: list[RetrievedChunk]) -> ChatResponse:
-        lead = chunks[0]
         copy = RESPONSE_COPY[request.locale]
+        products = self._recommend_products(request) if intent == "recommendation" else self._matching_products(request)
+        if products:
+            message = self._local_product_message(products, request.locale, recommendation=intent == "recommendation")
+            citations = self._product_citations(products)
+            suggestions = self._product_suggestions(products, request.locale)
+            confidence = max((chunk.score for chunk in chunks), default=0.72)
+            return ChatResponse(
+                message=message,
+                intent=intent,
+                confidence=min(0.93, max(0.55, confidence)),
+                grounded=True,
+                mode="local-rag",
+                citations=citations,
+                suggestions=suggestions,
+            )
+
+        if not chunks and intent not in {"shipping", "returns", "warranty", "payment"}:
+            return self._degraded_conversation(request, intent)
+
+        lead = chunks[0] if chunks else None
         message = copy.get(intent, copy["general"])
         return ChatResponse(
             message=message,
             intent=intent,
-            confidence=min(0.93, lead.score),
-            grounded=True,
+            confidence=min(0.93, max(0.45, lead.score if lead else 0.65)),
+            grounded=lead is not None,
             mode="local-rag",
-            citations=self._citations(chunks, [lead.id]),
+            citations=self._citations(chunks, [lead.id]) if lead else [],
             suggestions=self._suggestions(intent, request.locale),
+        )
+
+    @staticmethod
+    def _conversation_text(request: ChatRequest) -> str:
+        history = " ".join(item.content for item in request.history[-6:])
+        return f"{history} {request.message}".casefold()
+
+    def _matching_products(self, request: ChatRequest) -> list[ProductOut]:
+        text = self._conversation_text(request)
+        matches = []
+        for product in PRODUCTS:
+            aliases = {
+                product.id.casefold(),
+                product.slug.replace("-", " ").casefold(),
+                product.name.casefold(),
+                product.name.split()[0].casefold(),
+            }
+            if any(re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", text) for alias in aliases):
+                matches.append(product)
+        return matches[:3]
+
+    def _recommend_products(self, request: ChatRequest) -> list[ProductOut]:
+        direct_matches = self._matching_products(request)
+        text = self._conversation_text(request)
+        signals = {
+            "flow-keyboard": ("escrever", "digitar", "teclado", "keyboard", "typing", "write", "oficina"),
+            "vector-mouse": ("mouse", "ergonomia", "ergonomic", "precisão", "precision", "design"),
+            "slate-tablet": ("tablet", "estudo", "study", "desenho", "draw", "tela grande", "media"),
+            "aurora-headphones": ("foco", "focus", "viagem", "travel", "avião", "calls", "chamadas"),
+            "aero-earbuds": ("compact", "corrida", "exercise", "treino", "commute", "metrô", "metro"),
+            "nimbus-speaker": ("festa", "party", "outdoor", "área externa", "grupo", "shared"),
+            "orbit-watch": ("fitness", "atividade", "activity", "sono", "sleep", "gps", "corrida"),
+            "halo-lamp": ("luz", "light", "ambiente", "ambience", "matter", "rotina"),
+            "sentinel-camera": ("segurança", "security", "câmera", "camera", "monitor", "pet"),
+            "arc-charger": ("carreg", "charge", "cabos", "cables", "mesa limpa", "clutter"),
+            "prism-phone": ("celular", "phone", "smartphone", "5g", "camera", "câmera"),
+            "vertex-controller": ("game", "gaming", "jogo", "controle", "controller", "cloud"),
+        }
+        scored: list[tuple[int, float, ProductOut]] = []
+        for product in PRODUCTS:
+            signal_score = sum(1 for term in signals.get(product.id, ()) if term in text)
+            direct_score = 4 if product in direct_matches else 0
+            scored.append((signal_score + direct_score, product.rating, product))
+
+        budget_match = re.search(r"(?:r\$|até|under|menos de|hasta)\s*([\d.,]+)", text)
+        budget = None
+        if budget_match:
+            raw = budget_match.group(1).replace(".", "").replace(",", ".")
+            try:
+                budget = float(raw)
+            except ValueError:
+                budget = None
+        if budget:
+            scored = [item for item in scored if float(item[2].price) <= budget] or scored
+
+        ranked = sorted(scored, key=lambda item: (item[0], item[1]), reverse=True)
+        if ranked and ranked[0][0] == 0:
+            fallback_ids = ("flow-keyboard", "aurora-headphones", "halo-lamp")
+            return [product for product_id in fallback_ids if (product := next((p for p in PRODUCTS if p.id == product_id), None))]
+        return [item[2] for item in ranked[:3]]
+
+    @staticmethod
+    def _format_price(product: ProductOut) -> str:
+        return f"R$ {float(product.price):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    @classmethod
+    def _product_summary(cls, product: ProductOut, locale: str) -> str:
+        labels = {
+            "pt-BR": {
+                "Battery": "bateria",
+                "Connection": "conexão",
+                "Protection": "proteção",
+                "Devices": "dispositivos",
+                "Display": "tela",
+                "Storage": "armazenamento",
+                "Compatibility": "compatibilidade",
+                "Resolution": "resolução",
+                "Sensor": "sensor",
+            },
+            "es-419": {
+                "Battery": "batería",
+                "Connection": "conexión",
+                "Protection": "protección",
+                "Devices": "dispositivos",
+                "Display": "pantalla",
+                "Storage": "almacenamiento",
+                "Compatibility": "compatibilidad",
+                "Resolution": "resolución",
+                "Sensor": "sensor",
+            },
+        }
+        translated = labels.get(locale, {})
+        specs = ", ".join(f"{translated.get(str(key), str(key)).lower()}: {value}" for key, value in list(product.specs.items())[:3])
+        return f"{product.name} ({specs}; {cls._format_price(product)})"
+
+    @classmethod
+    def _local_product_message(
+        cls, products: list[ProductOut], locale: str, *, recommendation: bool
+    ) -> str:
+        primary = cls._product_summary(products[0], locale)
+        alternatives = "; ".join(cls._product_summary(product, locale) for product in products[1:])
+        if locale == "pt-BR":
+            if recommendation:
+                message = f"Pelo que você descreveu, eu começaria pelo {primary}."
+                if alternatives:
+                    message += f" Como alternativas para comparar, considere {alternatives}."
+                return message + " A escolha muda principalmente pelo formato de uso, autonomia e orçamento — posso aprofundar qualquer um desses critérios."
+            return f"Aqui estão os dados confirmados do {primary}. Posso comparar esses pontos com outro item do catálogo ou explicar compatibilidade e conteúdo da caixa."
+        if locale == "es-419":
+            if recommendation:
+                message = f"Por lo que describes, empezaría por {primary}."
+                if alternatives:
+                    message += f" Como alternativas para comparar, considera {alternatives}."
+                return message + " La decisión depende principalmente del uso, la autonomía y el presupuesto; puedo profundizar cualquiera de esos criterios."
+            return f"Estos son los datos confirmados de {primary}. Puedo compararlos con otro producto o revisar compatibilidad y contenido de la caja."
+        if recommendation:
+            message = f"Based on what you described, I would start with {primary}."
+            if alternatives:
+                message += f" Useful alternatives to compare are {alternatives}."
+            return message + " The main trade-offs are form factor, battery life and budget; I can go deeper on any of them."
+        return f"Here are the confirmed details for {primary}. I can compare them with another product or check compatibility and what is included."
+
+    @staticmethod
+    def _product_citations(products: list[ProductOut]) -> list[Citation]:
+        return [
+            Citation(
+                id=f"catalog-{product.id}",
+                title=f"Official Product Catalog — {product.name}",
+                source="knowledge/product_catalog.md",
+                excerpt=f"{product.description} "
+                + "; ".join(f"{key}: {value}" for key, value in product.specs.items()),
+            )
+            for product in products[:2]
+        ]
+
+    @staticmethod
+    def _product_suggestions(products: list[ProductOut], locale: str) -> list[str]:
+        name = products[0].name
+        if locale == "pt-BR":
+            return [f"Compare o {name}", "Qual tem melhor custo-benefício?", "O que vem na caixa?"]
+        if locale == "es-419":
+            return [f"Comparar {name}", "¿Cuál ofrece mejor valor?", "¿Qué incluye la caja?"]
+        return [f"Compare {name}", "Which offers the best value?", "What is in the box?"]
+
+    def _degraded_conversation(self, request: ChatRequest, intent: str) -> ChatResponse:
+        prior = next((item.content for item in reversed(request.history) if item.role == "user"), "")
+        messages = {
+            "pt-BR": (
+                "Consigo continuar pela base verificada do catálogo, mas a resposta generativa está temporariamente indisponível. "
+                + (f"Você vinha falando sobre “{sanitize_for_prompt(prior, 120)}”. " if prior else "")
+                + "Posso recomendar por orçamento, ambiente e rotina, ou responder sobre um produto específico."
+            ),
+            "es-419": (
+                "Puedo continuar con la base verificada del catálogo, pero la respuesta generativa no está disponible temporalmente. "
+                + (f"Estábamos hablando de “{sanitize_for_prompt(prior, 120)}”. " if prior else "")
+                + "Puedo recomendar por presupuesto, ambiente y rutina, o revisar un producto específico."
+            ),
+            "en-US": (
+                "I can continue with Lumina's verified catalog, but generative answers are temporarily unavailable. "
+                + (f"We were discussing “{sanitize_for_prompt(prior, 120)}”. " if prior else "")
+                + "I can recommend by budget, environment and routine, or answer about a specific product."
+            ),
+        }
+        return ChatResponse(
+            message=messages[request.locale],
+            intent=intent,
+            confidence=0.35,
+            grounded=False,
+            mode="local-rag",
+            suggestions=self._suggestions("general", request.locale),
         )
 
     @staticmethod
@@ -264,6 +487,33 @@ class AssistantService:
             ),
         }
         return next((intent for intent, words in rules.items() if any(word in text for word in words)), "general")
+
+    @staticmethod
+    def _requires_grounding(intent: str, message: str) -> bool:
+        if intent != "general":
+            return True
+        text = message.casefold()
+        commerce_terms = (
+            "lumina",
+            "produto",
+            "product",
+            "precio",
+            "preço",
+            "price",
+            "estoque",
+            "stock",
+            "oferta",
+            "offer",
+            "compat",
+            "catálogo",
+            "catalog",
+        )
+        product_terms = tuple(
+            alias
+            for product in PRODUCTS
+            for alias in (product.name.casefold(), product.name.split()[0].casefold())
+        )
+        return any(term in text for term in commerce_terms + product_terms)
 
     def _contextual_query(self, request: ChatRequest) -> str:
         previous_user = next((item.content for item in reversed(request.history) if item.role == "user"), "")

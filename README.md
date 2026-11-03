@@ -136,4 +136,10 @@ Product photography is stored locally under `frontend/public/assets` to avoid ru
 - [Black wireless headphones by Jason Leung](https://unsplash.com/photos/black-wireless-headphones-on-black-surface-IX3Ce-P4i84)
 - [Portable speaker by Habib Dadkhah](https://unsplash.com/photos/black-and-silver-portable-speaker-S0B-pmGjdVA)
 - [Wireless charging ecosystem by Sayan Majhi](https://unsplash.com/photos/phone-watch-and-earbuds-charging-on-a-pad-NDA_20pwjwo)
+- [Wireless earbuds by N1CE](https://unsplash.com/photos/redmi-wireless-earbuds-and-charging-case-on-a-magazine-Ljqzt-B7Djs)
+- [Minimal wireless mouse by Fer Troulik](https://unsplash.com/photos/a-white-computer-mouse-on-a-white-background-LP3nV76f2TA)
+- [Smartphone product photo by JIBIN SAMUEL](https://unsplash.com/photos/a-black-smartphone-resting-on-a-white-surface-vDmqcWC3yDI)
+- [Tablet and phone workspace by Jakub Żerdzicki](https://unsplash.com/photos/a-tablet-and-a-cell-phone-sitting-on-a-table-SE3hxMBkOCs)
+- [Game controller by Georgiy Lyamin](https://unsplash.com/photos/a-white-video-game-controller-on-an-orange-background-JTb7oA0IZPg)
+- [Smart-home security camera by Jakub Żerdzicki](https://unsplash.com/photos/a-white-camera-sitting-on-top-of-a-white-table-rzh-4N9eLmc)
 - Every image is shipped as an optimized local asset; the storefront does not depend on Unsplash at runtime.

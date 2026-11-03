@@ -30,7 +30,7 @@ export type AssistantResponse = {
   intent: string
   confidence: number
   grounded: boolean
-  mode: 'live-rag' | 'local-rag' | 'safe-refusal'
+  mode: 'live-rag' | 'live-conversation' | 'local-rag' | 'safe-refusal'
   citations: Citation[]
   suggestions: string[]
   actions: ChatAction[]

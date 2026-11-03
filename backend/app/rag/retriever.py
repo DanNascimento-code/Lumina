@@ -23,6 +23,7 @@ class HybridRetriever:
                 model=settings.embedding_model,
                 dimensions=settings.embedding_dimensions,
                 api_key=settings.openai_api_key,
+                max_retries=1,
             )
             if settings.has_llm
             else None
@@ -32,6 +33,8 @@ class HybridRetriever:
         if session is None or self.embeddings is None:
             return self.local_kb.search(query, self.settings.rag_rerank_top_k)
         try:
+            # Do not spend an embeddings request when the production database is unavailable.
+            await session.execute(text("SELECT 1"))
             vector = await self.embeddings.aembed_query(query)
             vector_rows = await self._vector_search(session, vector)
             lexical_rows = await self._lexical_search(session, query)

@@ -20,12 +20,12 @@ class Settings(BaseSettings):
     llm_model: str = "gpt-4.1-mini"
     embedding_model: str = "text-embedding-3-small"
     embedding_dimensions: int = 1536
-    llm_temperature: float = Field(default=0.1, ge=0, le=1)
+    llm_temperature: float = Field(default=0.2, ge=0, le=1)
 
     rag_vector_candidates: int = Field(default=24, ge=4, le=100)
     rag_lexical_candidates: int = Field(default=24, ge=4, le=100)
     rag_rerank_top_k: int = Field(default=6, ge=2, le=12)
-    rag_min_relevance: float = Field(default=0.32, ge=0, le=1)
+    rag_min_relevance: float = Field(default=0.18, ge=0, le=1)
     max_user_message_chars: int = Field(default=4000, ge=200, le=12000)
     enable_ragas: bool = False
 

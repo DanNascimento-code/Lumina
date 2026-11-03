@@ -1,4 +1,4 @@
-import { ArrowRight, Box, Headphones, Home, Keyboard, RotateCcw, ShieldCheck, Sparkles, Truck, Watch } from 'lucide-react'
+import { ArrowRight, Box, Gamepad2, Headphones, Home, Keyboard, RotateCcw, ShieldCheck, Smartphone, Sparkles, Truck, Watch } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Assistant } from './components/Assistant'
 import { CartDrawer } from './components/CartDrawer'
@@ -13,7 +13,7 @@ import { fetchProducts } from './lib/api'
 import type { Product } from './types'
 import { useI18n } from './i18n'
 
-const categoryIcons = [Sparkles, Headphones, Watch, Home, Keyboard, Box]
+const categoryIcons = [Sparkles, Headphones, Watch, Home, Keyboard, Box, Smartphone, Gamepad2]
 
 export default function App() {
   const { locale, t } = useI18n()

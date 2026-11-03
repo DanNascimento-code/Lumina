@@ -20,7 +20,8 @@ async def health() -> dict:
     return {
         "status": "ok",
         "database": database,
-        "assistant_mode": "live-rag" if settings.has_llm else "local-rag",
+        "assistant_mode": "live-rag-configured" if settings.has_llm else "local-rag",
+        "assistant_provider_check": "per-request",
         "version": "1.0.0",
     }
 

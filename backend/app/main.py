@@ -18,6 +18,7 @@ from backend.app.core.middleware import (
 )
 from backend.app.db.session import engine
 from backend.app.models import Base
+from backend.app.services.catalog import seed_catalog
 
 configure_logging()
 log = structlog.get_logger()
@@ -31,6 +32,7 @@ async def lifespan(_: FastAPI):
         async with engine.begin() as connection:
             await connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
             await connection.run_sync(Base.metadata.create_all)
+            await seed_catalog(connection)
         log.info("database_ready")
     except Exception as exc:
         log.warning("database_unavailable_local_fallback", error=type(exc).__name__)

@@ -6,7 +6,17 @@ from backend.app.services.orders import OrderService
 
 
 def test_catalog_filter() -> None:
-    assert len(list_products(category="Audio")) == 2
+    assert len(list_products()) == 12
+    assert len(list_products(category="Audio")) == 3
+    assert {product.category for product in list_products()} == {
+        "Audio",
+        "Wearables",
+        "Smart home",
+        "Workspace",
+        "Accessories",
+        "Mobile",
+        "Gaming",
+    }
 
 
 async def test_checkout_has_free_shipping_above_threshold() -> None:
