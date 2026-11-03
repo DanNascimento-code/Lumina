@@ -6,10 +6,10 @@ from backend.app.core.config import get_settings
 
 settings = get_settings()
 engine = create_async_engine(
-    settings.database_url,
+    settings.effective_database_url,
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=5,
+    max_overflow=5,
     pool_recycle=1800,
 )
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)

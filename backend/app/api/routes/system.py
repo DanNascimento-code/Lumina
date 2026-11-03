@@ -21,6 +21,8 @@ async def health() -> dict:
         "status": "ok",
         "database": database,
         "assistant_mode": "live-rag-configured" if settings.has_llm else "local-rag",
+        "assistant_provider": settings.llm_provider if settings.has_llm else "local",
+        "embedding_provider": settings.embedding_provider,
         "assistant_provider_check": "per-request",
         "version": "1.0.0",
     }

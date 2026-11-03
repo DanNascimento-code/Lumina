@@ -126,12 +126,13 @@ class AssistantService:
         self.guard = PromptInjectionGuard()
         self.llm = (
             ChatOpenAI(
-                model=settings.llm_model,
+                model=settings.active_llm_model,
                 temperature=settings.llm_temperature,
                 max_retries=1,
                 timeout=20,
-                api_key=settings.openai_api_key,
-            ).with_structured_output(LLMAnswer, method="json_schema")
+                api_key=settings.active_llm_api_key,
+                base_url=settings.llm_base_url,
+            ).with_structured_output(LLMAnswer, method="json_schema", strict=False)
             if settings.has_llm
             else None
         )

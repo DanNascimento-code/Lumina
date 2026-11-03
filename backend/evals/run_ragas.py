@@ -1,4 +1,4 @@
-"""Offline RAGAS evaluation. Requires `uv run --extra eval ...` and OPENAI_API_KEY."""
+"""Offline RAGAS evaluation using the configured live LLM provider."""
 
 import asyncio
 import json
@@ -15,12 +15,18 @@ from backend.app.rag.knowledge_base import LocalKnowledgeBase
 async def main() -> None:
     settings = get_settings()
     if not settings.has_llm:
-        raise RuntimeError("OPENAI_API_KEY is required for the RAGAS judge.")
+        raise RuntimeError("Configure the selected LLM provider key for the RAGAS judge.")
     dataset = json.loads(
         (Path(__file__).parent / "golden_dataset.json").read_text(encoding="utf-8")
     )
     kb = LocalKnowledgeBase()
-    judge = llm_factory(settings.llm_model, client=AsyncOpenAI())
+    client_options = {"api_key": settings.active_llm_api_key.get_secret_value()}
+    if settings.llm_base_url:
+        client_options["base_url"] = settings.llm_base_url
+    judge = llm_factory(
+        settings.active_llm_model,
+        client=AsyncOpenAI(**client_options),
+    )
     faithfulness = Faithfulness(llm=judge)
     answer_relevancy = AnswerRelevancy(llm=judge)
     context_precision = ContextPrecision(llm=judge)

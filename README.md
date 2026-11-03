@@ -24,7 +24,7 @@ Lumina is a multilingual commerce platform built around **Lumi**, an AI product 
 - Persistent cart, inventory checks, shipping thresholds and a three-stage checkout flow.
 - English-first interface with runtime switching to `pt-BR` and `es-419`.
 - Lumi maintains cart context, classifies intent, compares products, recommends next steps and exposes supporting sources.
-- Live LangChain/OpenAI pipeline with a credential-free local knowledge fallback for provider outages.
+- Provider-selectable LangChain pipeline using Groq or OpenAI, with a credential-free local knowledge fallback for provider outages.
 - Versioned operational knowledge covering products, shipping, returns, warranty, payments and privacy.
 - Prometheus metrics, structured logs, health checks, request IDs, rate limiting and RAGAS evaluation.
 
@@ -79,7 +79,7 @@ docker compose up --build
 - Health: `http://localhost:8000/health`
 - Metrics: `http://localhost:8000/metrics`
 
-Without `OPENAI_API_KEY`, Lumi automatically uses the versioned local knowledge layer. To enable live generation, set the key and ingest the knowledge base:
+Without a provider key, Lumi automatically uses the versioned local knowledge layer. For zero-cost development, create a Groq key, keep `LLM_PROVIDER=groq`, set `GROQ_API_KEY`, and ingest the knowledge base:
 
 ```bash
 docker compose exec api python -m backend.app.rag.ingest
@@ -118,7 +118,37 @@ The repository is configured as a single Vercel project. Vercel builds the Vite 
 
 The GitHub repository is connected to Vercel. Every push to `main` creates a production deployment, while pull requests receive preview deployments. GitHub Actions runs backend linting, tests and the production frontend build before changes are merged.
 
-Configure `APP_ENV=production`, `APP_SECRET_KEY`, `DATABASE_URL` and optionally `OPENAI_API_KEY` in Vercel Project Settings. Run the knowledge ingestion command against the production database before enabling live vector retrieval.
+Configure `APP_ENV=production`, `APP_SECRET_KEY`, `DATABASE_URL` and either `GROQ_API_KEY` or `OPENAI_API_KEY` in Vercel Project Settings. `DATABASE_URL_UNPOOLED`, when supplied by Neon, is preferred automatically. The default `EMBEDDING_PROVIDER=local` creates deterministic 1,536-dimensional vectors without an external embedding bill; `EMBEDDING_PROVIDER=openai` remains available for higher semantic recall. Run the knowledge ingestion command against the production database before enabling live vector retrieval.
+
+### AI provider configuration
+
+```dotenv
+# Free, rate-limited Groq inference
+LLM_PROVIDER=groq
+GROQ_API_KEY=your-server-side-key
+LLM_MODEL=openai/gpt-oss-120b
+
+# Or paid OpenAI inference
+# LLM_PROVIDER=openai
+# OPENAI_API_KEY=your-server-side-key
+# LLM_MODEL=gpt-4.1-mini
+
+# Free pgvector-compatible embeddings generated inside the application
+EMBEDDING_PROVIDER=local
+EMBEDDING_DIMENSIONS=1536
+```
+
+Provider errors and quota exhaustion always degrade to the controlled local response path. Keys are read only by FastAPI and are never included in the browser bundle.
+
+### Production PostgreSQL and pgvector
+
+The recommended Vercel setup is the Neon Free plan in the São Paulo region. The Vercel Marketplace injects `DATABASE_URL` and `DATABASE_URL_UNPOOLED`; the application normalizes either standard PostgreSQL URL for SQLAlchemy/asyncpg.
+
+```bash
+npx vercel integration add neon --name lumina-postgres --billing-plan free_v3 --meta region=gru1 --meta auth=false --environment production
+npx vercel env run -e production -- uv run python -m backend.app.rag.ingest
+npx vercel --prod --yes
+```
 
 ## Production integrations
 

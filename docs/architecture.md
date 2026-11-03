@@ -9,14 +9,16 @@
 | Retrieval | Search vector and lexical indexes with 24 candidates per channel | Use the versioned local knowledge layer during provider outages |
 | Fusion | Apply Reciprocal Rank Fusion with `k=60` | Avoid direct comparison of incompatible scores |
 | Reranking | Combine fused rank with query-term coverage | Send only the top six chunks to generation |
-| Answerability | Require a minimum relevance score of `0.32` | Return an explicit abstention |
-| Generation | Use temperature `0.1`, strict source boundaries and structured output | Fall back to deterministic grounded responses on timeout |
+| Answerability | Require a minimum relevance score of `0.18` | Return an explicit abstention |
+| Generation | Use temperature `0.2`, strict source boundaries and structured output | Fall back to deterministic grounded responses on timeout |
 | Validation | Allow only retrieved source IDs and require at least one valid citation | Convert unsupported output to abstention |
 | Actions | Return UI suggestions only | Transactional APIs validate every state change |
 
 ## Scaling model
 
-- Async FastAPI endpoints and a SQLAlchemy/asyncpg pool configured for 10 base connections and 20 overflow connections.
+- Async FastAPI endpoints and a bounded SQLAlchemy/asyncpg pool configured for serverless PostgreSQL.
+- Provider-selectable generation through Groq or OpenAI. Groq uses the OpenAI-compatible endpoint, so the LangChain orchestration and validation boundary remain unchanged.
+- Local deterministic 1,536-dimensional embeddings keep pgvector available without an external embedding API; OpenAI embeddings remain an opt-in production upgrade.
 - HNSW indexes with `m=16`, `ef_construction=64` and `iterative_scan=relaxed_order` for filtered retrieval.
 - GIN index over `to_tsvector` for lexical retrieval.
 - Idempotent ingestion keyed by tenant, document, chunk index and checksum.

@@ -1,11 +1,11 @@
 from collections import defaultdict
 
 import structlog
-from langchain_openai import OpenAIEmbeddings
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.config import Settings
+from backend.app.rag.embeddings import build_embeddings
 from backend.app.rag.knowledge_base import LocalKnowledgeBase, tokenize
 from backend.app.rag.types import RetrievedChunk
 
@@ -18,16 +18,7 @@ class HybridRetriever:
     def __init__(self, settings: Settings, local_kb: LocalKnowledgeBase) -> None:
         self.settings = settings
         self.local_kb = local_kb
-        self.embeddings = (
-            OpenAIEmbeddings(
-                model=settings.embedding_model,
-                dimensions=settings.embedding_dimensions,
-                api_key=settings.openai_api_key,
-                max_retries=1,
-            )
-            if settings.has_llm
-            else None
-        )
+        self.embeddings = build_embeddings(settings)
 
     async def retrieve(self, query: str, session: AsyncSession | None) -> list[RetrievedChunk]:
         if session is None or self.embeddings is None:

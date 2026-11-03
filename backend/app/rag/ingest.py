@@ -6,12 +6,12 @@ import re
 from pathlib import Path
 
 import structlog
-from langchain_openai import OpenAIEmbeddings
 from sqlalchemy import delete, text
 
 from backend.app.core.config import get_settings
 from backend.app.db.session import SessionLocal, engine
 from backend.app.models import Base, DocumentChunk
+from backend.app.rag.embeddings import build_embeddings
 from backend.app.rag.guardrails import PromptInjectionGuard
 
 log = structlog.get_logger()
@@ -45,13 +45,11 @@ def split_markdown(markdown: str, max_chars: int = 1800, overlap: int = 180) -> 
 
 
 async def ingest() -> None:
-    if not settings.has_llm:
-        raise RuntimeError("Set OPENAI_API_KEY to generate embeddings and run ingestion.")
-    embeddings = OpenAIEmbeddings(
-        model=settings.embedding_model,
-        dimensions=settings.embedding_dimensions,
-        api_key=settings.openai_api_key,
-    )
+    embeddings = build_embeddings(settings)
+    if embeddings is None:
+        raise RuntimeError(
+            "Configure OPENAI_API_KEY or set EMBEDDING_PROVIDER=local before ingestion."
+        )
     guard = PromptInjectionGuard()
     async with engine.begin() as connection:
         await connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
