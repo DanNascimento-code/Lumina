@@ -43,5 +43,4 @@ export type ChatMessage = {
   citations?: Citation[]
   suggestions?: string[]
   actions?: ChatAction[]
-  mode?: AssistantResponse['mode']
 }

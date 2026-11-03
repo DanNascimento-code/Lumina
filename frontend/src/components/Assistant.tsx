@@ -41,7 +41,7 @@ export function Assistant({ open, onOpen, onClose, initialPrompt, cart, products
     setMessages(history); setInput(''); setLoading(true)
     try {
       const response = await sendChat(clean, messages, cart, locale)
-      setMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', content: response.message, citations: response.citations, suggestions: response.suggestions, actions: response.actions, mode: response.mode }])
+      setMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', content: response.message, citations: response.citations, suggestions: response.suggestions, actions: response.actions }])
     } catch {
       setMessages((current) => [...current, localAnswer(clean, locale)])
     } finally { setLoading(false) }
@@ -67,7 +67,6 @@ export function Assistant({ open, onOpen, onClose, initialPrompt, cart, products
           <span className="message-avatar">{message.role === 'assistant' ? <Sparkles /> : <UserRound />}</span>
           <div className="message-stack">
             <div className="message-bubble">{message.content}</div>
-            {message.mode && <span className="answer-mode"><ShieldCheck /> {message.mode === 'live-rag' ? t('assistant.live') : message.mode === 'live-conversation' ? t('assistant.liveConversation') : message.mode === 'safe-refusal' ? t('assistant.protected') : t('assistant.local')}</span>}
             {message.citations && message.citations.length > 0 && <details className="citations"><summary><Bot /> {message.citations.length === 1 ? t('assistant.source') : t('assistant.sources', { count: message.citations.length })} <ChevronDown /></summary>{message.citations.map((citation) => <div key={citation.id}><b>{citation.title}</b><p>{citation.excerpt}</p><span>{citation.source} <ExternalLink /></span></div>)}</details>}
             {message.actions && message.actions.length > 0 && <div className="message-actions">{message.actions.map((action) => <button key={action.label} onClick={() => performAction(action)}><ShoppingBag />{action.label}<ArrowRight /></button>)}</div>}
             {message.suggestions && message.suggestions.length > 0 && index === messages.length - 1 && <div className="suggestion-chips">{message.suggestions.map((suggestion) => <button key={suggestion} onClick={() => void ask(suggestion)}>{suggestion}</button>)}</div>}
@@ -97,9 +96,9 @@ function starterPrompt(locale: Locale, type: 'find' | 'compare' | 'shipping' | '
 
 function localAnswer(text: string, locale: Locale): ChatMessage {
   const query = text.toLocaleLowerCase('pt-BR')
-  const shared = { id: crypto.randomUUID(), role: 'assistant' as const, mode: 'local-rag' as const }
+  const shared = { id: crypto.randomUUID(), role: 'assistant' as const }
   const copy = localCopy[locale]
-  if (/ignore|prompt|instruç|system|reveal|ignora/.test(query)) return { ...shared, content: copy.security, suggestions: copy.securitySuggestions, mode: 'safe-refusal' }
+  if (/ignore|prompt|instruç|system|reveal|ignora/.test(query)) return { ...shared, content: copy.security, suggestions: copy.securitySuggestions }
   if (/troca|devol|reembolso|arrepend|return|refund|devoluci|reembolso/.test(query)) return { ...shared, content: copy.returns, citations: [{ id: 'returns', title: copy.returnsTitle, source: 'knowledge/returns_policy.md', excerpt: copy.returnsExcerpt }], suggestions: copy.returnsSuggestions }
   if (/frete|entrega|prazo|cep|shipping|delivery|envío|entrega/.test(query)) return { ...shared, content: copy.shipping, citations: [{ id: 'shipping', title: copy.shippingTitle, source: 'knowledge/shipping_policy.md', excerpt: copy.shippingExcerpt }], suggestions: copy.shippingSuggestions }
   if (/aurora|nimbus|compar|recomenda|escolh|choose|recommend|compara|elegir/.test(query)) return { ...shared, content: copy.recommendation, citations: [{ id: 'catalog', title: copy.catalogTitle, source: 'knowledge/product_catalog.md', excerpt: copy.catalogExcerpt }], suggestions: copy.recommendationSuggestions, actions: [{ type: 'view_product', label: copy.viewAurora, product_id: 'aurora-headphones', product_name: 'Aurora Headphones' }] }
