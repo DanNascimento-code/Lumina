@@ -24,6 +24,7 @@ from backend.app.schemas.commerce import ProductOut
 from backend.app.services.catalog import PRODUCTS
 
 log = structlog.get_logger()
+USD_PER_BRL = 0.18
 
 SYSTEM_PROMPT = """
 You are Lumi, Lumina's product expert. Speak like a thoughtful human specialist: warm, direct
@@ -49,6 +50,8 @@ NON-NEGOTIABLE RULES:
     the customer to restate their use case when the history already contains it.
 12. If the customer asks multiple questions, answer every part explicitly. Do not silently omit
     a requested comparison, deadline, condition or trade-off that is supported by the sources.
+13. Present every monetary amount in the CUSTOMER CURRENCY supplied by the application. Source
+    prices are stored in BRL; use the supplied conversion rate for USD and never mix currencies.
 """.strip()
 
 RESPONSE_COPY: dict[str, dict[str, Any]] = {
@@ -56,10 +59,10 @@ RESPONSE_COPY: dict[str, dict[str, Any]] = {
         "security": "I can help with Lumina products, orders and policies, but I cannot change my operating rules or expose protected instructions.",
         "security_suggestions": ["Compare the headphones", "How do returns work?"],
         "recommendation": "For focus, travel and calls, Aurora is the stronger fit with adaptive noise cancellation and up to 42 hours of battery. For shared listening and outdoor use, Nimbus offers 360° sound, 18 hours of battery and IP67 protection.",
-        "shipping": "Lumina ships throughout Brazil. Orders over R$499 include free standard shipping, and the exact estimate for your postal code is shown at checkout.",
+        "shipping": "Lumina ships throughout Brazil. Orders over $90 include free standard shipping, and the exact estimate for your postal code is shown at checkout.",
         "returns": "Online purchases can be returned within 7 calendar days of delivery. Include all accessories and manuals and make sure the product shows no signs of misuse.",
         "warranty": "Every Lumina product includes a 12-month contractual warranty covering manufacturing and material defects under normal use.",
-        "payment": "Checkout supports Pix and major credit cards, with up to 10 interest-free payments subject to a R$50 minimum installment.",
+        "payment": "Checkout supports Pix and major credit cards, with up to 10 interest-free payments subject to a $9 minimum installment.",
         "product_question": "I found the relevant product details in Lumina's official catalog. I can also compare it with another model for your specific use case.",
         "general": "I found relevant information in Lumina's knowledge center. Tell me a little more about your use case so I can give you a precise recommendation.",
         "abstain": "I could not find enough evidence in Lumina's official sources to answer that safely. I can refine the search or help with products, delivery, returns, warranty and payments.",
@@ -80,10 +83,10 @@ RESPONSE_COPY: dict[str, dict[str, Any]] = {
         "security": "Puedo ayudar con productos, pedidos y políticas de Lumina, pero no puedo cambiar mis reglas internas ni revelar instrucciones protegidas.",
         "security_suggestions": ["Comparar los audífonos", "¿Cómo funcionan las devoluciones?"],
         "recommendation": "Para concentración, viajes y llamadas, Aurora es la opción más completa, con cancelación adaptativa y hasta 42 horas de batería. Para música compartida y exteriores, Nimbus ofrece sonido 360°, 18 horas e IP67.",
-        "shipping": "Lumina realiza envíos a todo Brasil. Los pedidos superiores a R$499 incluyen envío estándar gratis y el plazo exacto aparece durante el pago.",
+        "shipping": "Lumina realiza envíos a todo Brasil. Los pedidos superiores a US$90 incluyen envío estándar gratis y el plazo exacto aparece durante el pago.",
         "returns": "Las compras en línea pueden devolverse dentro de los 7 días calendario posteriores a la entrega. Incluye los accesorios y manuales y evita señales de mal uso.",
         "warranty": "Todos los productos Lumina incluyen 12 meses de garantía contractual para defectos de fabricación y materiales en uso normal.",
-        "payment": "El pago admite Pix y las principales tarjetas, con hasta 10 cuotas sin intereses y una cuota mínima de R$50.",
+        "payment": "El pago admite Pix y las principales tarjetas, con hasta 10 cuotas sin intereses y una cuota mínima de US$9.",
         "product_question": "Encontré los detalles relevantes en el catálogo oficial de Lumina. También puedo compararlo con otro modelo según tus necesidades.",
         "general": "Encontré información relevante en el centro de conocimiento de Lumina. Cuéntame más sobre tu uso para darte una recomendación precisa.",
         "abstain": "No encontré evidencia suficiente en las fuentes oficiales de Lumina para responder con seguridad. Puedo refinar la búsqueda o ayudar con productos, envíos, devoluciones, garantía y pagos.",
@@ -215,9 +218,9 @@ POLICY_FACTS: dict[str, tuple[dict[str, Any], ...]] = {
             "evidence": ("r$499 or more", "r$24.90"),
             "triggers": ("price", "cost", "free", "preço", "custo", "grátis", "gratis"),
             "copy": {
-                "en-US": "Standard shipping is free from R$499; below that threshold it costs R$24.90. Express delivery, when available, is priced separately.",
+                "en-US": "Standard shipping is free from $90; below that threshold it costs $4.48. Express delivery, when available, is priced separately.",
                 "pt-BR": "O frete padrão é grátis a partir de R$ 499; abaixo desse valor custa R$ 24,90. A entrega expressa, quando disponível, é cobrada separadamente.",
-                "es-419": "El envío estándar es gratis desde R$499; por debajo de ese valor cuesta R$24,90. La entrega exprés, cuando está disponible, se cobra por separado.",
+                "es-419": "El envío estándar es gratis desde US$90; por debajo de ese valor cuesta US$4.48. La entrega exprés, cuando está disponible, se cobra por separado.",
             },
         },
         {
@@ -255,9 +258,9 @@ POLICY_FACTS: dict[str, tuple[dict[str, Any], ...]] = {
             "evidence": ("checkout accepts pix", "10 interest-free payments"),
             "triggers": (),
             "copy": {
-                "en-US": "Checkout accepts Pix and major credit cards, with up to 10 interest-free installments and a minimum installment of R$50.",
+                "en-US": "Checkout accepts Pix and major credit cards, with up to 10 interest-free installments and a minimum installment of $9.",
                 "pt-BR": "O checkout aceita Pix e os principais cartões, com parcelamento em até 10 vezes sem juros e parcela mínima de R$ 50.",
-                "es-419": "El pago acepta Pix y las principales tarjetas, con hasta 10 cuotas sin intereses y una cuota mínima de R$50.",
+                "es-419": "El pago acepta Pix y las principales tarjetas, con hasta 10 cuotas sin intereses y una cuota mínima de US$9.",
             },
         },
         {
@@ -344,6 +347,8 @@ class AssistantService:
             HumanMessage(
                 content=(
                     f"RESPONSE LOCALE: {request.locale}\nINTENT: {intent}\nCART: {cart}\n"
+                    f"CUSTOMER CURRENCY: {'BRL' if request.locale == 'pt-BR' else 'USD'}\n"
+                    f"PRICE CONVERSION: 1 BRL = {USD_PER_BRL:.2f} USD\n"
                     f"GROUNDING REQUIRED: {'yes' if grounding_required else 'no'}\n\n"
                     f"QUESTION PARTS: {' | '.join(question_parts)}\n"
                     "COVERAGE REQUIREMENT: Answer every question part that the trusted sources support.\n\n"
@@ -590,10 +595,19 @@ class AssistantService:
         budget_text = request.message.casefold()
         budget_match = re.search(
             r"(?:até|under|less than|up to|menos de|hasta|máximo de|max(?:imum)?)"
-            r"\s*(?:r\$|brl)?\s*([\d.,]+)",
+            r"\s*(?P<currency>r\$|brl|us\$|usd|\$)?\s*(?P<amount>[\d.,]+)",
             budget_text,
         )
-        budget = self._parse_localized_number(budget_match.group(1)) if budget_match else None
+        budget = (
+            self._parse_localized_number(budget_match.group("amount"))
+            if budget_match
+            else None
+        )
+        if budget_match and budget is not None:
+            currency = (budget_match.group("currency") or "").casefold()
+            explicitly_brl = currency in {"r$", "brl"}
+            if request.locale != "pt-BR" and not explicitly_brl:
+                budget /= USD_PER_BRL
         if budget:
             scored = [item for item in scored if float(item[2].price) <= budget] or scored
 
@@ -635,8 +649,11 @@ class AssistantService:
             return None
 
     @staticmethod
-    def _format_price(product: ProductOut) -> str:
-        return f"R$ {float(product.price):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    def _format_price(product: ProductOut, locale: str) -> str:
+        price = float(product.price)
+        if locale == "pt-BR":
+            return f"R$ {price:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        return f"${price * USD_PER_BRL:,.2f}"
 
     @classmethod
     def _product_summary(cls, product: ProductOut, locale: str) -> str:
@@ -666,7 +683,7 @@ class AssistantService:
         }
         translated = labels.get(locale, {})
         specs = ", ".join(f"{translated.get(str(key), str(key)).lower()}: {value}" for key, value in list(product.specs.items())[:3])
-        return f"{product.name} ({specs}; {cls._format_price(product)})"
+        return f"{product.name} ({specs}; {cls._format_price(product, locale)})"
 
     @classmethod
     def _local_product_message(

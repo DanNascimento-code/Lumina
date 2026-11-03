@@ -6,6 +6,7 @@ from backend.app.rag.knowledge_base import LocalKnowledgeBase
 from backend.app.rag.retriever import HybridRetriever
 from backend.app.schemas.chat import ChatHistoryItem, ChatRequest
 from backend.app.services.assistant import AssistantService
+from backend.app.services.catalog import PRODUCTS
 
 
 def local_assistant() -> AssistantService:
@@ -165,3 +166,27 @@ async def test_local_recommendation_respects_english_thousands_separator() -> No
     assert all(float(item.price) <= 1000 for item in local_assistant()._recommend_products(
         ChatRequest(message="Headphones under R$1,000", locale="en-US")
     ))
+
+
+@pytest.mark.asyncio
+async def test_english_recommendation_converts_usd_budget_and_price() -> None:
+    assistant = local_assistant()
+    response = await assistant.answer(
+        ChatRequest(
+            message="I need headphones for travel and calls under $150. What do you recommend?",
+            locale="en-US",
+        ),
+        session=None,
+    )
+
+    assert "Aero Buds Pro" in response.message
+    assert "$125.98" in response.message
+    assert "R$" not in response.message
+
+
+def test_product_price_uses_currency_for_locale() -> None:
+    product = next(item for item in PRODUCTS if item.id == "aero-earbuds")
+
+    assert local_assistant()._format_price(product, "pt-BR") == "R$ 699,90"
+    assert local_assistant()._format_price(product, "en-US") == "$125.98"
+    assert local_assistant()._format_price(product, "es-419") == "$125.98"
