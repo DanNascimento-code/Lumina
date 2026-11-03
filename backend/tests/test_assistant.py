@@ -160,6 +160,8 @@ async def test_local_recommendation_respects_english_thousands_separator() -> No
 
     assert "Aero Buds Pro" in response.message
     assert "Aurora Headphones" not in response.message
+    assert "Vertex Controller" not in response.message
+    assert "Nimbus Speaker" not in response.message
     assert all(float(item.price) <= 1000 for item in local_assistant()._recommend_products(
         ChatRequest(message="Headphones under R$1,000", locale="en-US")
     ))

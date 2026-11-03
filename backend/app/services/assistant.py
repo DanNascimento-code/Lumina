@@ -601,7 +601,8 @@ class AssistantService:
         if ranked and ranked[0][0] == 0:
             fallback_ids = ("flow-keyboard", "aurora-headphones", "halo-lamp")
             return [product for product_id in fallback_ids if (product := next((p for p in PRODUCTS if p.id == product_id), None))]
-        return [item[2] for item in ranked[:3]]
+        relevant = [item for item in ranked if item[0] > 0]
+        return [item[2] for item in relevant[:3]]
 
     @staticmethod
     def _parse_localized_number(value: str) -> float | None:
