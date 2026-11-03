@@ -184,6 +184,24 @@ async def test_english_recommendation_converts_usd_budget_and_price() -> None:
     assert "R$" not in response.message
 
 
+@pytest.mark.asyncio
+async def test_spanish_recommendation_uses_usd_price() -> None:
+    response = await local_assistant().answer(
+        ChatRequest(
+            message=(
+                "Necesito audífonos para viajes y llamadas por menos de US$150. "
+                "¿Qué recomiendas?"
+            ),
+            locale="es-419",
+        ),
+        session=None,
+    )
+
+    assert "Aero Buds Pro" in response.message
+    assert "$125.98" in response.message
+    assert "R$" not in response.message
+
+
 def test_product_price_uses_currency_for_locale() -> None:
     product = next(item for item in PRODUCTS if item.id == "aero-earbuds")
 
