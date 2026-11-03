@@ -50,6 +50,9 @@ async def test_local_assistant_uses_history_for_follow_up() -> None:
     assert second.grounded is True
     assert second.message != first.message
     assert "bateria" in second.message.casefold()
+    assert "Flow Keys Pro" in second.message
+    assert "Slate Tab 11" in second.message
+    assert "Vertex Controller" not in second.message
 
 
 @pytest.mark.asyncio

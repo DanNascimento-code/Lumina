@@ -225,9 +225,22 @@ class AssistantService:
 
     def _local_answer(self, request: ChatRequest, intent: str, chunks: list[RetrievedChunk]) -> ChatResponse:
         copy = RESPONSE_COPY[request.locale]
-        products = self._recommend_products(request) if intent == "recommendation" else self._matching_products(request)
+        follow_up = bool(request.history) and any(
+            term in request.message.casefold()
+            for term in ("bateria", "battery", "dura", "compat", "compare também", "compare also")
+        )
+        products = (
+            self._recommend_products(request)
+            if intent == "recommendation" and not follow_up
+            else self._matching_products(request)
+        )
         if products:
-            message = self._local_product_message(products, request.locale, recommendation=intent == "recommendation")
+            message = self._local_product_message(
+                products,
+                request.locale,
+                recommendation=intent == "recommendation" and not follow_up,
+                follow_up=follow_up,
+            )
             citations = self._product_citations(products)
             suggestions = self._product_suggestions(products, request.locale)
             confidence = max((chunk.score for chunk in chunks), default=0.72)
@@ -263,7 +276,7 @@ class AssistantService:
 
     def _matching_products(self, request: ChatRequest) -> list[ProductOut]:
         text = self._conversation_text(request)
-        matches = []
+        matches: list[tuple[int, ProductOut]] = []
         for product in PRODUCTS:
             aliases = {
                 product.id.casefold(),
@@ -271,9 +284,14 @@ class AssistantService:
                 product.name.casefold(),
                 product.name.split()[0].casefold(),
             }
-            if any(re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", text) for alias in aliases):
-                matches.append(product)
-        return matches[:3]
+            positions = [
+                match.start()
+                for alias in aliases
+                if (match := re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", text))
+            ]
+            if positions:
+                matches.append((min(positions), product))
+        return [product for _, product in sorted(matches, key=lambda item: item[0])[:3]]
 
     def _recommend_products(self, request: ChatRequest) -> list[ProductOut]:
         direct_matches = self._matching_products(request)
@@ -298,7 +316,11 @@ class AssistantService:
             direct_score = 4 if product in direct_matches else 0
             scored.append((signal_score + direct_score, product.rating, product))
 
-        budget_match = re.search(r"(?:r\$|até|under|menos de|hasta)\s*([\d.,]+)", text)
+        budget_text = request.message.casefold()
+        budget_match = re.search(
+            r"(?:até|under|menos de|hasta|máximo de|max(?:imum)?)\s*(?:r\$)?\s*([\d.,]+)",
+            budget_text,
+        )
         budget = None
         if budget_match:
             raw = budget_match.group(1).replace(".", "").replace(",", ".")
@@ -351,11 +373,21 @@ class AssistantService:
 
     @classmethod
     def _local_product_message(
-        cls, products: list[ProductOut], locale: str, *, recommendation: bool
+        cls,
+        products: list[ProductOut],
+        locale: str,
+        *,
+        recommendation: bool,
+        follow_up: bool = False,
     ) -> str:
         primary = cls._product_summary(products[0], locale)
         alternatives = "; ".join(cls._product_summary(product, locale) for product in products[1:])
         if locale == "pt-BR":
+            if follow_up:
+                message = f"Sobre o item anterior: {primary}."
+                if alternatives:
+                    message += f" Para comparar no mesmo contexto, considere {alternatives}."
+                return message + " Posso detalhar a diferença prática entre eles para a sua rotina."
             if recommendation:
                 message = f"Pelo que você descreveu, eu começaria pelo {primary}."
                 if alternatives:
@@ -363,12 +395,22 @@ class AssistantService:
                 return message + " A escolha muda principalmente pelo formato de uso, autonomia e orçamento — posso aprofundar qualquer um desses critérios."
             return f"Aqui estão os dados confirmados do {primary}. Posso comparar esses pontos com outro item do catálogo ou explicar compatibilidade e conteúdo da caixa."
         if locale == "es-419":
+            if follow_up:
+                message = f"Sobre el producto anterior: {primary}."
+                if alternatives:
+                    message += f" Para compararlo en el mismo contexto, considera {alternatives}."
+                return message + " Puedo explicar la diferencia práctica para tu rutina."
             if recommendation:
                 message = f"Por lo que describes, empezaría por {primary}."
                 if alternatives:
                     message += f" Como alternativas para comparar, considera {alternatives}."
                 return message + " La decisión depende principalmente del uso, la autonomía y el presupuesto; puedo profundizar cualquiera de esos criterios."
             return f"Estos son los datos confirmados de {primary}. Puedo compararlos con otro producto o revisar compatibilidad y contenido de la caja."
+        if follow_up:
+            message = f"About the previous item: {primary}."
+            if alternatives:
+                message += f" In the same context, compare it with {alternatives}."
+            return message + " I can explain the practical difference for your routine."
         if recommendation:
             message = f"Based on what you described, I would start with {primary}."
             if alternatives:
