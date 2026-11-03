@@ -5,20 +5,20 @@
 | Stage | Responsibility | Safe failure behavior |
 |---|---|---|
 | Input guard | Normalize Unicode and inspect direct injection, role tags, invisible characters and encoded payloads | Refuse without sending the message to the LLM |
-| Contextual query | Use a bounded recent history window | Prevent unbounded context growth |
+| Contextual query | Use a bounded recent history window and decompose compound questions into at most four retrieval queries | Prevent unbounded context growth while covering every requested fact |
 | Retrieval | Search vector and lexical indexes with 24 candidates per channel | Use the versioned local knowledge layer during provider outages |
 | Fusion | Apply Reciprocal Rank Fusion with `k=60` | Avoid direct comparison of incompatible scores |
 | Reranking | Combine fused rank with query-term coverage | Send only the top six chunks to generation |
 | Answerability | Require a minimum relevance score of `0.18` | Return an explicit abstention |
-| Generation | Use temperature `0.2`, strict source boundaries and structured output | Fall back to deterministic grounded responses on timeout |
-| Validation | Allow only retrieved source IDs and require at least one valid citation | Convert unsupported output to abstention |
+| Generation | Use temperature `0.2`, strict source boundaries, explicit question-part coverage and structured output | Fall back to deterministic grounded responses on timeout |
+| Validation | Allow only retrieved source IDs, require valid citations and log the exact rejection reason | Build a multilingual evidence-driven fallback from all relevant chunks |
 | Actions | Return UI suggestions only | Transactional APIs validate every state change |
 
 ## Scaling model
 
 - Async FastAPI endpoints and a bounded SQLAlchemy/asyncpg pool configured for serverless PostgreSQL.
 - Provider-selectable generation through Groq or OpenAI. Groq uses the OpenAI-compatible endpoint, so the LangChain orchestration and validation boundary remain unchanged.
-- Local deterministic 1,536-dimensional embeddings keep pgvector available without an external embedding API; OpenAI embeddings remain an opt-in production upgrade.
+- Local deterministic 1,536-dimensional embeddings combine words, character n-grams and multilingual commerce concepts to keep pgvector available without an external API; OpenAI semantic embeddings remain an opt-in production upgrade.
 - HNSW indexes with `m=16`, `ef_construction=64` and `iterative_scan=relaxed_order` for filtered retrieval.
 - GIN index over `to_tsvector` for lexical retrieval.
 - Idempotent ingestion keyed by tenant, document, chunk index and checksum.

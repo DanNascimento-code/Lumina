@@ -9,7 +9,7 @@ from backend.app.services.assistant import AssistantService
 
 
 def local_assistant() -> AssistantService:
-    settings = Settings(openai_api_key=SecretStr(""))
+    settings = Settings(groq_api_key=SecretStr(""), openai_api_key=SecretStr(""))
     knowledge = LocalKnowledgeBase()
     return AssistantService(settings, HybridRetriever(settings, knowledge))
 
@@ -76,3 +76,58 @@ async def test_payment_question_does_not_match_arc_product_by_substring() -> Non
 
     assert "10 vezes" in response.message
     assert "Arc Charger" not in response.message
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("locale", "question", "return_phrase", "refund_phrase"),
+    [
+        (
+            "pt-BR",
+            "Posso devolver uma compra online? Explique também o prazo de estorno no Pix.",
+            "7 dias corridos",
+            "2 dias úteis",
+        ),
+        (
+            "en-US",
+            "Can I return an online purchase, and when will my Pix refund arrive?",
+            "7 calendar days",
+            "2 business days",
+        ),
+        (
+            "es-419",
+            "¿Puedo devolver una compra en línea y cuándo llega el reembolso por Pix?",
+            "7 días calendario",
+            "2 días hábiles",
+        ),
+    ],
+)
+async def test_compound_return_questions_cover_every_part(
+    locale: str,
+    question: str,
+    return_phrase: str,
+    refund_phrase: str,
+) -> None:
+    response = await local_assistant().answer(
+        ChatRequest(message=question, locale=locale),
+        session=None,
+    )
+
+    assert response.grounded is True
+    assert return_phrase in response.message
+    assert refund_phrase in response.message
+    assert response.citations
+
+
+def test_compound_question_is_decomposed_into_retrieval_parts() -> None:
+    assistant = local_assistant()
+    request = ChatRequest(
+        message="Posso devolver uma compra online? Explique também o prazo do estorno no Pix.",
+        locale="pt-BR",
+    )
+
+    queries = assistant._retrieval_queries(request, "returns")
+
+    assert len(queries) >= 3
+    assert any("devolver" in query.casefold() for query in queries)
+    assert any("estorno" in query.casefold() for query in queries)

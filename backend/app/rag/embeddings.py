@@ -11,6 +11,21 @@ from langchain_openai import OpenAIEmbeddings
 
 from backend.app.core.config import Settings
 
+SEMANTIC_ALIASES: dict[str, tuple[str, ...]] = {
+    "returns": ("return", "returns", "devolucao", "devolver", "devolucion", "cambio", "troca"),
+    "refund": ("refund", "reembolso", "estorno", "reintegro"),
+    "shipping": ("shipping", "delivery", "frete", "entrega", "envio"),
+    "tracking": ("tracking", "track order", "rastreio", "rastrear", "seguimiento"),
+    "warranty": ("warranty", "garantia", "garantia contractual"),
+    "repair": ("repair", "technical support", "conserto", "reparo", "assistencia tecnica", "soporte tecnico"),
+    "payment": ("payment", "pagamento", "pago"),
+    "installments": ("installment", "installments", "parcelamento", "parcelas", "cuotas"),
+    "battery": ("battery", "battery life", "bateria", "autonomia"),
+    "headphones": ("headphones", "headset", "fone", "fones", "audifonos", "auriculares"),
+    "travel": ("travel", "trip", "viagem", "viajar", "viaje"),
+    "work": ("work", "office", "trabalho", "escritorio", "oficina"),
+}
+
 
 class LocalHashEmbeddings(Embeddings):
     """Deterministic, zero-cost embeddings for compact commerce knowledge bases.
@@ -32,6 +47,9 @@ class LocalHashEmbeddings(Embeddings):
         normalized = self._normalize(text)
         words = re.findall(r"[a-z0-9]+", normalized)
         features: list[tuple[str, float]] = [(f"w:{word}", 1.0) for word in words]
+        for concept, aliases in SEMANTIC_ALIASES.items():
+            if any(re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", normalized) for alias in aliases):
+                features.append((f"semantic:{concept}", 2.0))
         features.extend(
             (f"b:{left}_{right}", 0.75) for left, right in zip(words, words[1:], strict=False)
         )

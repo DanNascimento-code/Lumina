@@ -7,6 +7,7 @@ from pathlib import Path
 
 from pypdf import PdfReader, PdfWriter
 from pypdf.generic import NameObject
+from reportlab.graphics import renderPDF
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -23,10 +24,11 @@ from reportlab.platypus import (
     Table,
     TableStyle,
 )
+from svglib.svglib import svg2rlg
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT / "output" / "pdf"
-LOGO_PATH = ROOT / "frontend" / "public" / "assets" / "brand" / "lumina-logo.png"
+LOGO_PATH = ROOT / "frontend" / "public" / "assets" / "brand" / "lumina-logo.svg"
 PRODUCTION_URL = "https://lumina-smart-store.vercel.app"
 
 MIDNIGHT = colors.HexColor("#17152B")
@@ -190,6 +192,20 @@ def build_styles() -> dict[str, ParagraphStyle]:
 STYLES = build_styles()
 
 
+def draw_logo(canvas, x: float, y: float, width: float, height: float) -> None:
+    drawing = svg2rlg(str(LOGO_PATH))
+    if drawing is None:
+        raise RuntimeError(f"Unable to load Lumina logo: {LOGO_PATH}")
+    scale = min(width / drawing.width, height / drawing.height)
+    drawing.scale(scale, scale)
+    renderPDF.draw(
+        drawing,
+        canvas,
+        x + (width - drawing.width * scale) / 2,
+        y + (height - drawing.height * scale) / 2,
+    )
+
+
 def p(text: str, style: str = "body") -> Paragraph:
     return Paragraph(text, STYLES[style])
 
@@ -273,7 +289,7 @@ def draw_header_footer(canvas, doc) -> None:
     width, height = A4
     canvas.setFillColor(MIDNIGHT)
     canvas.rect(0, height - 12 * mm, width, 12 * mm, fill=1, stroke=0)
-    canvas.drawImage(str(LOGO_PATH), 18 * mm, height - 10.7 * mm, 8 * mm, 8 * mm, preserveAspectRatio=True, mask="auto")
+    draw_logo(canvas, 18 * mm, height - 10.7 * mm, 8 * mm, 8 * mm)
     canvas.setFillColor(WHITE)
     canvas.setFont("Helvetica-Bold", 8)
     canvas.drawString(29 * mm, height - 7.8 * mm, "LUMINA")
@@ -300,7 +316,7 @@ def draw_cover(canvas, doc, meta: DocMeta) -> None:
     canvas.circle(width - 5 * mm, 38 * mm, 55 * mm, fill=1, stroke=0)
     canvas.setFillColor(CORAL)
     canvas.circle(24 * mm, 34 * mm, 9 * mm, fill=1, stroke=0)
-    canvas.drawImage(str(LOGO_PATH), 22 * mm, height - 70 * mm, 38 * mm, 38 * mm, preserveAspectRatio=True, mask="auto")
+    draw_logo(canvas, 22 * mm, height - 70 * mm, 38 * mm, 38 * mm)
     canvas.setFillColor(colors.HexColor("#BDAFEF"))
     canvas.setFont("Helvetica-Bold", 8)
     canvas.drawString(22 * mm, height - 86 * mm, meta.label.upper())
@@ -547,15 +563,15 @@ def technical_story() -> list[Flowable]:
         p("2. Inspect prompt injection risk", "h2"),
         p("PromptInjectionGuard detects direct instruction override attempts, prompt disclosure requests, role markup and common obfuscation patterns. High-risk requests receive a safe refusal before retrieval or model invocation."),
         p("3. Classify intent and build a retrieval query", "h2"),
-        p("The service classifies recommendation, shipping, returns, warranty, payment and product intents. Multilingual queries receive stable English retrieval anchors for consistent lexical behavior."),
+        p("The service classifies recommendation, shipping, returns, warranty, payment and product intents. Compound questions are split into bounded subqueries, and multilingual queries receive stable English retrieval anchors for consistent lexical behavior."),
         p("4. Retrieve and rerank", "h2"),
-        p("When PostgreSQL is available, the retriever combines lexical full-text candidates and pgvector candidates using reciprocal rank fusion. The default local embedding provider creates deterministic vectors without a paid API; OpenAI semantic embeddings remain an opt-in upgrade. Deterministic keyword and source signals rerank the fused set. A local knowledge retriever provides graceful degradation."),
+        p("When PostgreSQL is available, the retriever combines lexical full-text candidates and pgvector candidates using reciprocal rank fusion. The default local embedding provider combines words, character n-grams and multilingual commerce concepts without a paid API; OpenAI semantic embeddings remain an opt-in upgrade. Results from each subquery are merged and reranked. A local knowledge retriever provides graceful degradation."),
         p("5. Enforce evidence thresholds", "h2"),
         p("Chunks below the minimum relevance score are removed. Unsupported Lumina facts use a grounded local fallback or safe abstention. General conversation may still use the selected model without presenting uncited statements as company facts."),
         p("6. Generate a structured answer", "h2"),
         p("LangChain's ChatOpenAI adapter targets either Groq's OpenAI-compatible endpoint or OpenAI directly. It receives a system policy, sanitized conversation context, cart summary, current question and delimited trusted sources. The response must match the LLMAnswer JSON schema."),
         p("7. Verify the result", "h2"),
-        p("The service rejects unanswerable, low-confidence or uncited outputs. Cited identifiers must exist in the retrieved set. Any model exception falls back to a controlled local answer."),
+        p("The service rejects unanswerable, low-confidence or uncited outputs. Cited identifiers must exist in the retrieved set. Every rejection records a structured reason without prompt or secret content. Model exceptions and rejected answers fall back to a multilingual response assembled from all relevant evidence chunks."),
         PageBreak(),
     ]
 

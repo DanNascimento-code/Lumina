@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="lumina-title lumina-description">
+  <title id="lumina-title">Lumina</title>
+  <desc id="lumina-description">A violet and coral orbital mark surrounding a bright four-point star.</desc>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M63 18c-21 0-36 15-36 34 0 20 16 34 37 34h30" stroke="#7557E8" stroke-width="18"/>
+    <path d="M96 65c0-21-14-36-34-36-19 0-33 15-33 34 0 21 16 37 37 37" stroke="#FF7D67" stroke-width="16"/>
+    <path d="M31 67c0 19 16 34 37 34 20 0 35-13 35-34" stroke="#4E2395" stroke-width="15"/>
+  </g>
+  <path d="M64 43c2 12 7 17 19 20-12 2-17 7-19 20-3-13-8-18-20-20 12-3 17-8 20-20Z" fill="#FFFFFF"/>
+</svg>

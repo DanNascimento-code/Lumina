@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="frontend/public/assets/brand/lumina-logo.png" alt="Lumina" width="112" />
+  <img src="frontend/public/assets/brand/lumina-logo.svg" alt="Lumina" width="112" />
 </p>
 
 # Lumina Commerce
@@ -16,7 +16,7 @@ Lumina is a multilingual commerce platform built around **Lumi**, an AI product 
 
 - [Product and service guide](output/pdf/lumina-product-and-service-guide.pdf)
 - [Technical documentation](output/pdf/lumina-technical-documentation.pdf)
-- [Lumina brand mark](frontend/public/assets/brand/lumina-logo.png)
+- [Lumina brand mark](frontend/public/assets/brand/lumina-logo.svg)
 
 ## Product capabilities
 
@@ -58,12 +58,14 @@ No generative system can guarantee the complete elimination of hallucinations or
 2. Ingestion-time quarantine for documents that contain indirect-injection indicators.
 3. Hybrid retrieval combining HNSW cosine search and Portuguese/English full-text search.
 4. Reciprocal Rank Fusion to combine rankings without comparing incompatible score scales.
-5. Deterministic reranking and a minimum evidence threshold before generation.
-6. Explicit source boundaries that treat retrieved content as data, never as instructions.
-7. Low generation temperature and Pydantic/JSON Schema output validation.
-8. Citation allowlisting: source IDs not returned by retrieval are discarded.
-9. No transactional tools inside the model boundary. Cart, inventory, totals and checkout remain deterministic.
-10. RAGAS evaluation for faithfulness, answer relevance and context precision.
+5. Compound-question decomposition with independent retrieval queries and merged evidence coverage.
+6. Deterministic reranking and a minimum evidence threshold before generation.
+7. Explicit source boundaries that treat retrieved content as data, never as instructions.
+8. Low generation temperature and Pydantic/JSON Schema output validation.
+9. Citation allowlisting: source IDs not returned by retrieval are discarded.
+10. Evidence-driven multilingual policy fallbacks that combine all relevant retrieved chunks.
+11. No transactional tools inside the model boundary. Cart, inventory, totals and checkout remain deterministic.
+12. RAGAS evaluation for faithfulness, answer relevance and context precision.
 
 ## Running the platform
 
@@ -138,7 +140,7 @@ EMBEDDING_PROVIDER=local
 EMBEDDING_DIMENSIONS=1536
 ```
 
-Provider errors and quota exhaustion always degrade to the controlled local response path. Keys are read only by FastAPI and are never included in the browser bundle.
+Provider errors and quota exhaustion always degrade to the controlled local response path. Validation fallbacks record a structured reason without logging prompts or secrets. Keys are read only by FastAPI and are never included in the browser bundle.
 
 ### Production PostgreSQL and pgvector
 

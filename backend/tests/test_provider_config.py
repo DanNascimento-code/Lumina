@@ -5,7 +5,11 @@ from backend.app.rag.embeddings import LocalHashEmbeddings, build_embeddings
 
 
 def test_groq_is_default_and_requires_its_own_key() -> None:
-    settings = Settings(openai_api_key=SecretStr("openai-key"), llm_model=None)
+    settings = Settings(
+        groq_api_key=SecretStr(""),
+        openai_api_key=SecretStr("openai-key"),
+        llm_model=None,
+    )
 
     assert settings.llm_provider == "groq"
     assert settings.has_llm is False
@@ -52,3 +56,15 @@ def test_local_embedding_provider_needs_no_api_key() -> None:
     embeddings = build_embeddings(settings)
     assert isinstance(embeddings, LocalHashEmbeddings)
     assert len(embeddings.embed_query("shipping policy")) == 64
+
+
+def test_local_embeddings_align_multilingual_commerce_concepts() -> None:
+    embeddings = LocalHashEmbeddings(dimensions=256)
+    portuguese = embeddings.embed_query("Quando recebo o estorno da devolução?")
+    english = embeddings.embed_query("When will I receive the refund for my return?")
+    unrelated = embeddings.embed_query("Bluetooth speaker battery for a beach party")
+
+    translated_similarity = sum(a * b for a, b in zip(portuguese, english, strict=True))
+    unrelated_similarity = sum(a * b for a, b in zip(portuguese, unrelated, strict=True))
+
+    assert translated_similarity > unrelated_similarity

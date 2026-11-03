@@ -47,6 +47,8 @@ NON-NEGOTIABLE RULES:
     but never present an uncited claim as a Lumina product, price, policy, stock or service fact.
 11. Prefer a useful, complete answer followed by one natural question. Do not default to asking
     the customer to restate their use case when the history already contains it.
+12. If the customer asks multiple questions, answer every part explicitly. Do not silently omit
+    a requested comparison, deadline, condition or trade-off that is supported by the sources.
 """.strip()
 
 RESPONSE_COPY: dict[str, dict[str, Any]] = {
@@ -118,6 +120,158 @@ ACTION_COPY = {
     "es-419": {"view": "Ver", "cart": "Revisar mi carrito"},
 }
 
+INTENT_RULES: dict[str, tuple[str, ...]] = {
+    "returns": ("return", "refund", "exchange", "troca", "devol", "arrepend", "reembolso", "estorno", "devolución"),
+    "shipping": ("shipping", "delivery", "frete", "entrega", "prazo", "cep", "envío"),
+    "warranty": ("warranty", "defect", "repair", "garantia", "defeito", "assistência", "conserto", "garantía"),
+    "payment": ("payment", "card", "installment", "pagamento", "pix", "cartão", "parcel", "pago", "tarjeta"),
+    "recommendation": (
+        "recommend",
+        "compare",
+        "best",
+        "gift",
+        "choose",
+        "recomenda",
+        "indica",
+        "melhor",
+        "presente",
+        "escolher",
+        "compar",
+        "regalo",
+        "elegir",
+    ),
+    "product_question": (
+        "battery",
+        "compatible",
+        "bluetooth",
+        "waterproof",
+        "bateria",
+        "compat",
+        "resistente",
+        "especifica",
+        "especificación",
+    ),
+}
+
+RETRIEVAL_HINTS = {
+    "shipping": "shipping delivery estimate postal code free standard shipping tracking address",
+    "returns": "returns refund exchange withdrawal seven calendar days Pix card refund timing",
+    "warranty": "warranty manufacturing defects repair twelve months battery exclusions",
+    "payment": "payment Pix card installments approval security cancellation",
+    "recommendation": "product catalog comparison Aurora Nimbus use case",
+    "product_question": "product catalog specifications battery compatibility",
+}
+
+POLICY_FACTS: dict[str, tuple[dict[str, Any], ...]] = {
+    "returns": (
+        {
+            "evidence": ("online purchases may be returned", "7 calendar days"),
+            "triggers": (),
+            "copy": {
+                "en-US": "Online purchases may be returned within 7 calendar days of delivery when the item includes its accessories, manuals and original packaging and shows no signs of misuse.",
+                "pt-BR": "Compras online podem ser devolvidas em até 7 dias corridos do recebimento, com acessórios, manuais e embalagem original e sem sinais de mau uso.",
+                "es-419": "Las compras en línea pueden devolverse dentro de los 7 días calendario posteriores a la entrega, con accesorios, manuales y empaque original y sin señales de mal uso.",
+            },
+        },
+        {
+            "evidence": ("prepaid return label", "5 calendar days"),
+            "triggers": ("how", "start", "request", "como", "iniciar", "solicitar", "cómo", "devolver"),
+            "copy": {
+                "en-US": "Start the request in My Orders or with Customer Support; Lumina provides a prepaid label and the package must be shipped within 5 calendar days after the label is issued.",
+                "pt-BR": "A solicitação começa em Meus Pedidos ou no Atendimento; a Lumina fornece uma etiqueta pré-paga e o pacote deve ser enviado em até 5 dias corridos após a emissão.",
+                "es-419": "La solicitud se inicia en Mis pedidos o con Atención al cliente; Lumina proporciona una etiqueta prepagada y el paquete debe enviarse dentro de los 5 días calendario posteriores a su emisión.",
+            },
+        },
+        {
+            "evidence": ("pix refunds are completed within 2 business days", "next two statements"),
+            "triggers": ("refund", "reembolso", "estorno", "pix", "card", "cartão", "tarjeta"),
+            "copy": {
+                "en-US": "After approval, Pix refunds are completed within 2 business days. Card refunds are requested within 2 business days and may appear on one of the next two statements, depending on the issuer.",
+                "pt-BR": "Após a aprovação, o estorno via Pix é concluído em até 2 dias úteis. No cartão, o estorno é solicitado em até 2 dias úteis e pode aparecer em uma das duas faturas seguintes, conforme o emissor.",
+                "es-419": "Tras la aprobación, el reembolso por Pix se completa dentro de 2 días hábiles. En tarjeta se solicita dentro de 2 días hábiles y puede aparecer en uno de los dos estados de cuenta siguientes, según el emisor.",
+            },
+        },
+        {
+            "evidence": ("defects reported within 30 days", "5 business days"),
+            "triggers": ("defect", "defeito", "defecto", "broken", "quebrado"),
+            "copy": {
+                "en-US": "Defects reported within 30 days receive priority triage, free return shipping and an initial assessment within 5 business days after arrival at the technical center.",
+                "pt-BR": "Defeitos informados em até 30 dias recebem triagem prioritária, frete de retorno grátis e avaliação inicial em até 5 dias úteis após a chegada ao centro técnico.",
+                "es-419": "Los defectos informados dentro de 30 días reciben evaluación prioritaria, devolución gratuita y una revisión inicial dentro de 5 días hábiles tras llegar al centro técnico.",
+            },
+        },
+    ),
+    "shipping": (
+        {
+            "evidence": ("ships to every state in brazil",),
+            "triggers": (),
+            "copy": {
+                "en-US": "Lumina ships to every state in Brazil, and the delivery estimate shown for the customer's postal code at checkout takes precedence.",
+                "pt-BR": "A Lumina entrega em todos os estados do Brasil, e o prazo exibido para o CEP no checkout é o que prevalece.",
+                "es-419": "Lumina realiza entregas en todos los estados de Brasil, y prevalece el plazo mostrado para el código postal durante el pago.",
+            },
+        },
+        {
+            "evidence": ("r$499 or more", "r$24.90"),
+            "triggers": ("price", "cost", "free", "preço", "custo", "grátis", "gratis"),
+            "copy": {
+                "en-US": "Standard shipping is free from R$499; below that threshold it costs R$24.90. Express delivery, when available, is priced separately.",
+                "pt-BR": "O frete padrão é grátis a partir de R$ 499; abaixo desse valor custa R$ 24,90. A entrega expressa, quando disponível, é cobrada separadamente.",
+                "es-419": "El envío estándar es gratis desde R$499; por debajo de ese valor cuesta R$24,90. La entrega exprés, cuando está disponible, se cobra por separado.",
+            },
+        },
+        {
+            "evidence": ("tracking link by email", "my orders"),
+            "triggers": ("track", "tracking", "rastre", "acompan", "seguimiento"),
+            "copy": {
+                "en-US": "After dispatch, the tracking link is sent by email and progress is also available in My Orders; carrier updates can take up to 24 hours to appear.",
+                "pt-BR": "Após o envio, o link de rastreio chega por e-mail e o progresso também aparece em Meus Pedidos; atualizações da transportadora podem levar até 24 horas.",
+                "es-419": "Después del envío, el enlace de seguimiento llega por correo y también aparece en Mis pedidos; las actualizaciones del transportista pueden tardar hasta 24 horas.",
+            },
+        },
+    ),
+    "warranty": (
+        {
+            "evidence": ("12-month contractual warranty", "defects in materials and manufacturing"),
+            "triggers": (),
+            "copy": {
+                "en-US": "Every Lumina product includes a 12-month contractual warranty covering manufacturing and material defects under normal use.",
+                "pt-BR": "Todos os produtos Lumina incluem 12 meses de garantia contratual para defeitos de fabricação e materiais em uso normal.",
+                "es-419": "Todos los productos Lumina incluyen 12 meses de garantía contractual para defectos de fabricación y materiales durante el uso normal.",
+            },
+        },
+        {
+            "evidence": ("initial assessment within 5 business days", "free return shipping"),
+            "triggers": ("repair", "support", "conserto", "assistência", "reparo", "soporte"),
+            "copy": {
+                "en-US": "When inspection is required, Lumina provides free return shipping and the technical center completes its initial assessment within 5 business days of arrival.",
+                "pt-BR": "Quando é necessária uma inspeção, a Lumina oferece frete de retorno grátis e o centro técnico conclui a avaliação inicial em até 5 dias úteis após a chegada.",
+                "es-419": "Cuando se requiere una inspección, Lumina ofrece devolución gratuita y el centro técnico completa la evaluación inicial dentro de 5 días hábiles tras la llegada.",
+            },
+        },
+    ),
+    "payment": (
+        {
+            "evidence": ("checkout accepts pix", "10 interest-free payments"),
+            "triggers": (),
+            "copy": {
+                "en-US": "Checkout accepts Pix and major credit cards, with up to 10 interest-free installments and a minimum installment of R$50.",
+                "pt-BR": "O checkout aceita Pix e os principais cartões, com parcelamento em até 10 vezes sem juros e parcela mínima de R$ 50.",
+                "es-419": "El pago acepta Pix y las principales tarjetas, con hasta 10 cuotas sin intereses y una cuota mínima de R$50.",
+            },
+        },
+        {
+            "evidence": ("never requests a password", "banking token"),
+            "triggers": ("secure", "security", "password", "seguro", "segurança", "senha", "contraseña"),
+            "copy": {
+                "en-US": "Lumina never requests passwords, a full security code, banking tokens or transfers to an individual's account.",
+                "pt-BR": "A Lumina nunca solicita senhas, código de segurança completo, token bancário ou transferência para conta de pessoa física.",
+                "es-419": "Lumina nunca solicita contraseñas, el código de seguridad completo, tokens bancarios ni transferencias a cuentas personales.",
+            },
+        },
+    ),
+}
+
 
 class AssistantService:
     def __init__(self, settings: Settings, retriever: HybridRetriever) -> None:
@@ -152,21 +306,25 @@ class AssistantService:
                 safety_notice=guard.reason,
             )
 
-        intent = self._classify_intent(request.message)
-        query = self._retrieval_query(request, intent)
-        chunks = await self.retriever.retrieve(query, session)
+        intents = self._classify_intents(request.message)
+        intent = intents[0]
+        queries = self._retrieval_queries(request, intent)
+        retrieval_sets = [await self.retriever.retrieve(query, session) for query in queries]
+        chunks = self._merge_retrieval_results(retrieval_sets)
         strong_chunks = [chunk for chunk in chunks if chunk.score >= self.settings.rag_min_relevance]
         grounding_required = self._requires_grounding(intent, request.message)
 
+        evidence_chunks = strong_chunks or chunks
         if self.llm:
             response = await self._live_answer(
                 request,
                 intent,
-                strong_chunks or chunks[:3],
+                evidence_chunks,
                 grounding_required=grounding_required,
+                question_parts=self._question_parts(request.message),
             )
         else:
-            response = self._local_answer(request, intent, strong_chunks or chunks[:3])
+            response = self._local_answer(request, intent, evidence_chunks)
         response.actions = self._actions(request.message, intent, request.locale)
         return response
 
@@ -177,6 +335,7 @@ class AssistantService:
         chunks: list[RetrievedChunk],
         *,
         grounding_required: bool,
+        question_parts: list[str],
     ) -> ChatResponse:
         context = self._format_context(chunks) if chunks else "No relevant Lumina source was retrieved."
         cart = ", ".join(f"{item.quantity}x {item.name}" for item in request.cart) or "empty"
@@ -186,6 +345,8 @@ class AssistantService:
                 content=(
                     f"RESPONSE LOCALE: {request.locale}\nINTENT: {intent}\nCART: {cart}\n"
                     f"GROUNDING REQUIRED: {'yes' if grounding_required else 'no'}\n\n"
+                    f"QUESTION PARTS: {' | '.join(question_parts)}\n"
+                    "COVERAGE REQUIREMENT: Answer every question part that the trusted sources support.\n\n"
                     f"TRUSTED SOURCES:\n{context}"
                 )
             ),
@@ -201,14 +362,24 @@ class AssistantService:
                 "llm_fallback",
                 error=type(exc).__name__,
                 error_code=getattr(exc, "code", None),
+                provider=self.settings.llm_provider,
+                reason="provider_exception",
+                intent=intent,
+                session_id=request.session_id,
             )
             return self._local_answer(request, intent, chunks)
 
         valid_ids = {chunk.id for chunk in chunks}
         cited_ids = [source_id for source_id in parsed.cited_source_ids if source_id in valid_ids]
-        if not parsed.answerable or parsed.confidence < 0.4:
+        if not parsed.answerable:
+            self._log_validation_fallback(request, intent, "model_marked_unanswerable", parsed, cited_ids)
+            return self._local_answer(request, intent, chunks)
+        if parsed.confidence < 0.4:
+            self._log_validation_fallback(request, intent, "confidence_below_threshold", parsed, cited_ids)
             return self._local_answer(request, intent, chunks)
         if grounding_required and not cited_ids:
+            reason = "citations_not_in_retrieved_set" if parsed.cited_source_ids else "missing_required_citation"
+            self._log_validation_fallback(request, intent, reason, parsed, cited_ids)
             return self._local_answer(request, intent, chunks)
         return ChatResponse(
             message=parsed.answer,
@@ -226,6 +397,9 @@ class AssistantService:
 
     def _local_answer(self, request: ChatRequest, intent: str, chunks: list[RetrievedChunk]) -> ChatResponse:
         copy = RESPONSE_COPY[request.locale]
+        policy_response = self._local_policy_answer(request, chunks)
+        if policy_response is not None:
+            return policy_response
         follow_up = bool(request.history) and any(
             term in request.message.casefold()
             for term in ("bateria", "battery", "dura", "compat", "compare também", "compare also")
@@ -268,6 +442,78 @@ class AssistantService:
             mode="local-rag",
             citations=self._citations(chunks, [lead.id]) if lead else [],
             suggestions=self._suggestions(intent, request.locale),
+        )
+
+    def _local_policy_answer(
+        self, request: ChatRequest, chunks: list[RetrievedChunk]
+    ) -> ChatResponse | None:
+        intents = [
+            intent
+            for intent in self._classify_intents(request.message)
+            if intent in POLICY_FACTS
+        ]
+        if not intents or not chunks:
+            return None
+
+        query = request.message.casefold()
+        messages: list[str] = []
+        used_ids: list[str] = []
+        for intent in intents:
+            policy_chunks = [
+                chunk
+                for chunk in chunks
+                if chunk.doc_type == intent or intent in chunk.source.casefold()
+            ]
+            if not policy_chunks:
+                continue
+            evidence = " ".join(chunk.content.casefold() for chunk in policy_chunks)
+            for fact in POLICY_FACTS[intent]:
+                if not all(term in evidence for term in fact["evidence"]):
+                    continue
+                triggers = fact["triggers"]
+                if triggers and not any(trigger in query for trigger in triggers):
+                    continue
+                message = fact["copy"][request.locale]
+                if message not in messages:
+                    messages.append(message)
+                for chunk in policy_chunks:
+                    if any(term in chunk.content.casefold() for term in fact["evidence"]):
+                        used_ids.append(chunk.id)
+
+        if not messages:
+            return None
+        unique_ids = list(dict.fromkeys(used_ids))[:4]
+        cited_chunks = [chunk for chunk in chunks if chunk.id in unique_ids]
+        confidence = max((chunk.score for chunk in cited_chunks), default=0.65)
+        primary_intent = intents[0]
+        return ChatResponse(
+            message=" ".join(messages),
+            intent=primary_intent,
+            confidence=min(0.93, max(0.5, confidence)),
+            grounded=bool(unique_ids),
+            mode="local-rag",
+            citations=self._citations(chunks, unique_ids),
+            suggestions=self._suggestions(primary_intent, request.locale),
+        )
+
+    def _log_validation_fallback(
+        self,
+        request: ChatRequest,
+        intent: str,
+        reason: str,
+        parsed: LLMAnswer,
+        valid_citations: list[str],
+    ) -> None:
+        log.warning(
+            "llm_response_rejected",
+            reason=reason,
+            provider=self.settings.llm_provider,
+            intent=intent,
+            session_id=request.session_id,
+            answerable=parsed.answerable,
+            confidence=parsed.confidence,
+            supplied_citation_count=len(parsed.cited_source_ids),
+            valid_citation_count=len(valid_citations),
         )
 
     @staticmethod
@@ -496,40 +742,22 @@ class AssistantService:
 
     @staticmethod
     def _classify_intent(message: str) -> str:
+        return AssistantService._classify_intents(message)[0]
+
+    @staticmethod
+    def _classify_intents(message: str) -> list[str]:
         text = message.casefold()
-        rules = {
-            "returns": ("return", "refund", "exchange", "troca", "devol", "arrepend", "reembolso", "devolución"),
-            "shipping": ("shipping", "delivery", "frete", "entrega", "prazo", "cep", "envío"),
-            "warranty": ("warranty", "defect", "repair", "garantia", "defeito", "assistência", "conserto", "garantía"),
-            "payment": ("payment", "card", "installment", "pagamento", "pix", "cartão", "parcel", "pago", "tarjeta"),
-            "recommendation": (
-                "recommend",
-                "compare",
-                "best",
-                "gift",
-                "choose",
-                "recomenda",
-                "indica",
-                "melhor",
-                "presente",
-                "escolher",
-                "compar",
-                "regalo",
-                "elegir",
-            ),
-            "product_question": (
-                "battery",
-                "compatible",
-                "bluetooth",
-                "waterproof",
-                "bateria",
-                "compat",
-                "resistente",
-                "especifica",
-                "especificación",
-            ),
-        }
-        return next((intent for intent, words in rules.items() if any(word in text for word in words)), "general")
+        intents = [
+            intent
+            for intent, words in INTENT_RULES.items()
+            if any(word in text for word in words)
+        ]
+        if "returns" in intents and "payment" in intents and not any(
+            term in text
+            for term in ("payment", "pagamento", "pay for", "pagar", "installment", "parcelamento", "cuotas")
+        ):
+            intents.remove("payment")
+        return intents or ["general"]
 
     @staticmethod
     def _requires_grounding(intent: str, message: str) -> bool:
@@ -564,15 +792,63 @@ class AssistantService:
 
     def _retrieval_query(self, request: ChatRequest, intent: str) -> str:
         """Add English retrieval anchors so lexical fallback remains multilingual."""
-        hints = {
-            "shipping": "shipping delivery estimate postal code free standard shipping",
-            "returns": "returns refund exchange seven calendar days",
-            "warranty": "warranty manufacturing defects repair twelve months",
-            "payment": "payment Pix card installments security",
-            "recommendation": "product catalog comparison Aurora Nimbus use case",
-            "product_question": "product catalog specifications battery compatibility",
-        }
-        return f"{self._contextual_query(request)} {hints.get(intent, '')}".strip()
+        return f"{self._contextual_query(request)} {RETRIEVAL_HINTS.get(intent, '')}".strip()
+
+    def _retrieval_queries(self, request: ChatRequest, intent: str) -> list[str]:
+        queries = [self._retrieval_query(request, intent)]
+        for part in self._question_parts(request.message):
+            part_intent = self._classify_intent(part)
+            query = f"{part} {RETRIEVAL_HINTS.get(part_intent, RETRIEVAL_HINTS.get(intent, ''))}".strip()
+            if query.casefold() not in {item.casefold() for item in queries}:
+                queries.append(query)
+        return queries[:4]
+
+    @staticmethod
+    def _question_parts(message: str) -> list[str]:
+        separators = (
+            r"[?;]+|\b(?:also|and also|tamb[eé]m|al[eé]m disso|adem[aá]s|y tambi[eé]n)\b|"
+            r"\b(?:and|e|y)\s+(?=(?:when|how|what|where|which|quando|como|qual|onde|cu[aá]ndo|c[oó]mo))"
+        )
+        parts = [
+            re.sub(r"\s+", " ", part).strip(" ,.-")
+            for part in re.split(separators, message, flags=re.IGNORECASE)
+        ]
+        meaningful = [part for part in parts if len(part) >= 10]
+        return meaningful or [message.strip()]
+
+    def _merge_retrieval_results(
+        self, retrieval_sets: list[list[RetrievedChunk]]
+    ) -> list[RetrievedChunk]:
+        best: dict[str, tuple[RetrievedChunk, int]] = {}
+        hits: dict[str, int] = {}
+        for chunks in retrieval_sets:
+            seen_in_query: set[str] = set()
+            for rank, chunk in enumerate(chunks):
+                current = best.get(chunk.id)
+                if current is None or chunk.score > current[0].score:
+                    best[chunk.id] = (chunk, rank)
+                if chunk.id not in seen_in_query:
+                    hits[chunk.id] = hits.get(chunk.id, 0) + 1
+                    seen_in_query.add(chunk.id)
+
+        merged: list[RetrievedChunk] = []
+        for chunk_id, (chunk, rank) in best.items():
+            multi_query_bonus = min(0.08, 0.025 * max(0, hits[chunk_id] - 1))
+            rank_bonus = 0.015 / (rank + 1)
+            merged.append(
+                RetrievedChunk(
+                    id=chunk.id,
+                    title=chunk.title,
+                    content=chunk.content,
+                    source=chunk.source,
+                    doc_type=chunk.doc_type,
+                    score=min(0.99, chunk.score + multi_query_bonus + rank_bonus),
+                    metadata=chunk.metadata,
+                )
+            )
+        return sorted(merged, key=lambda chunk: chunk.score, reverse=True)[
+            : self.settings.rag_rerank_top_k
+        ]
 
     @staticmethod
     def _suggestions(intent: str, locale: str) -> list[str]:
