@@ -547,8 +547,32 @@ class AssistantService:
             "flow-keyboard": ("escrever", "digitar", "teclado", "keyboard", "typing", "write", "oficina"),
             "vector-mouse": ("mouse", "ergonomia", "ergonomic", "precisão", "precision", "design"),
             "slate-tablet": ("tablet", "estudo", "study", "desenho", "draw", "tela grande", "media"),
-            "aurora-headphones": ("foco", "focus", "viagem", "travel", "avião", "calls", "chamadas"),
-            "aero-earbuds": ("compact", "corrida", "exercise", "treino", "commute", "metrô", "metro"),
+            "aurora-headphones": (
+                "headphones",
+                "headset",
+                "fone",
+                "fones",
+                "foco",
+                "focus",
+                "viagem",
+                "travel",
+                "avião",
+                "calls",
+                "chamadas",
+            ),
+            "aero-earbuds": (
+                "headphones",
+                "earbuds",
+                "fone",
+                "fones",
+                "compact",
+                "corrida",
+                "exercise",
+                "treino",
+                "commute",
+                "metrô",
+                "metro",
+            ),
             "nimbus-speaker": ("festa", "party", "outdoor", "área externa", "grupo", "shared"),
             "orbit-watch": ("fitness", "atividade", "activity", "sono", "sleep", "gps", "corrida"),
             "halo-lamp": ("luz", "light", "ambiente", "ambience", "matter", "rotina"),
@@ -565,16 +589,11 @@ class AssistantService:
 
         budget_text = request.message.casefold()
         budget_match = re.search(
-            r"(?:até|under|menos de|hasta|máximo de|max(?:imum)?)\s*(?:r\$)?\s*([\d.,]+)",
+            r"(?:até|under|less than|up to|menos de|hasta|máximo de|max(?:imum)?)"
+            r"\s*(?:r\$|brl)?\s*([\d.,]+)",
             budget_text,
         )
-        budget = None
-        if budget_match:
-            raw = budget_match.group(1).replace(".", "").replace(",", ".")
-            try:
-                budget = float(raw)
-            except ValueError:
-                budget = None
+        budget = self._parse_localized_number(budget_match.group(1)) if budget_match else None
         if budget:
             scored = [item for item in scored if float(item[2].price) <= budget] or scored
 
@@ -583,6 +602,36 @@ class AssistantService:
             fallback_ids = ("flow-keyboard", "aurora-headphones", "halo-lamp")
             return [product for product_id in fallback_ids if (product := next((p for p in PRODUCTS if p.id == product_id), None))]
         return [item[2] for item in ranked[:3]]
+
+    @staticmethod
+    def _parse_localized_number(value: str) -> float | None:
+        """Parse common Brazilian and English price formats without locale state."""
+        raw = value.strip()
+        if not raw or not re.fullmatch(r"\d[\d.,]*", raw):
+            return None
+        separators = [(raw.rfind(mark), mark) for mark in (".", ",") if mark in raw]
+        if not separators:
+            normalized = raw
+        elif len(separators) == 2:
+            decimal_index, decimal_mark = max(separators)
+            fractional_digits = len(raw) - decimal_index - 1
+            if fractional_digits == 2:
+                thousands_mark = "," if decimal_mark == "." else "."
+                normalized = raw.replace(thousands_mark, "").replace(decimal_mark, ".")
+            else:
+                normalized = raw.replace(".", "").replace(",", "")
+        else:
+            mark = separators[0][1]
+            parts = raw.split(mark)
+            normalized = (
+                f"{parts[0]}.{parts[1]}"
+                if len(parts) == 2 and len(parts[1]) == 2
+                else "".join(parts)
+            )
+        try:
+            return float(normalized)
+        except ValueError:
+            return None
 
     @staticmethod
     def _format_price(product: ProductOut) -> str:

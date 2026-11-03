@@ -131,3 +131,35 @@ def test_compound_question_is_decomposed_into_retrieval_parts() -> None:
     assert len(queries) >= 3
     assert any("devolver" in query.casefold() for query in queries)
     assert any("estorno" in query.casefold() for query in queries)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("1,000", 1000.0),
+        ("1.000", 1000.0),
+        ("999.90", 999.9),
+        ("999,90", 999.9),
+        ("1,299.90", 1299.9),
+        ("1.299,90", 1299.9),
+    ],
+)
+def test_localized_budget_parser(raw: str, expected: float) -> None:
+    assert local_assistant()._parse_localized_number(raw) == expected
+
+
+@pytest.mark.asyncio
+async def test_local_recommendation_respects_english_thousands_separator() -> None:
+    response = await local_assistant().answer(
+        ChatRequest(
+            message="I need headphones for travel and calls under R$1,000. What do you recommend?",
+            locale="en-US",
+        ),
+        session=None,
+    )
+
+    assert "Aero Buds Pro" in response.message
+    assert "Aurora Headphones" not in response.message
+    assert all(float(item.price) <= 1000 for item in local_assistant()._recommend_products(
+        ChatRequest(message="Headphones under R$1,000", locale="en-US")
+    ))
